@@ -16,6 +16,7 @@ import {
 import { execFileSync } from 'child_process'
 import fs from 'fs'
 import { join } from 'path'
+import { homedir } from 'os'
 import { is } from '@electron-toolkit/utils'
 import { REGLAGES_DEFAUT, normalizeReglages, type Reglages } from '../shared/reglages'
 import {
@@ -45,6 +46,25 @@ app.commandLine.appendSwitch('use-fake-ui-for-media-stream')
 app.commandLine.appendSwitch('disable-background-timer-throttling')
 app.commandLine.appendSwitch('disable-renderer-backgrounding')
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+
+// Une application lancée depuis le Finder hérite d'un PATH minimal
+// (/usr/bin:/bin…) : ni `claude`, ni `node`, ni `git` n'y sont. On reprend
+// celui du shell de connexion, une fois, avant de lancer quoi que ce soit.
+if (process.platform === 'darwin') {
+  try {
+    const shell = process.env.SHELL || '/bin/zsh'
+    const chemin = execFileSync(shell, ['-ilc', 'printf %s "$PATH"'], {
+      encoding: 'utf-8',
+      timeout: 4000
+    }).trim()
+    const reperes = ['/opt/homebrew/bin', '/usr/local/bin', join(homedir(), '.local', 'bin')]
+    process.env.PATH = [...new Set([...chemin.split(':'), ...reperes, ...(process.env.PATH ?? '').split(':')])]
+      .filter(Boolean)
+      .join(':')
+  } catch {
+    // Shell indisponible : les chemins explicites de `commandeClaude` restent.
+  }
+}
 
 // Une seconde instance réenregistrerait le raccourci (échec silencieux) et
 // poserait une deuxième icône dans la zone de notification.
@@ -288,6 +308,11 @@ function creerOverlay(): void {
 
   // Au-dessus des fenêtres plein écran également : on parle à Iris en jouant.
   overlay.setAlwaysOnTop(true, 'screen-saver')
+  // Sur macOS, une app en plein écran a son propre bureau : sans ça, la barre
+  // apparaîtrait sur un autre.
+  if (process.platform === 'darwin') {
+    overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  }
 
   overlayPret = new Promise((resolve) => {
     overlay?.webContents.once('did-finish-load', () => resolve())
@@ -331,6 +356,12 @@ function habillageTitre(): Electron.TitleBarOverlayOptions {
   }
 }
 
+/** L'habillage des fenêtres ordinaires, propre à chaque système. */
+function cadre(): Partial<Electron.BrowserWindowConstructorOptions> {
+  if (process.platform === 'darwin') return {}
+  return { frame: false, titleBarStyle: 'hidden', titleBarOverlay: habillageTitre() }
+}
+
 function creerConversation(): void {
   conversation = new BrowserWindow({
     width: 560,
@@ -342,9 +373,9 @@ function creerConversation(): void {
     title: 'Iris',
     // Barre de titre intégrée : l'en-tête est dessiné par le renderer, mais
     // les trois boutons restent ceux de Windows.
-    frame: false,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: habillageTitre(),
+    // Sur macOS, la fenêtre classique : sans cadre, les trois pastilles de
+    // fermeture disparaîtraient.
+    ...cadre(),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1c1f' : '#fbfbfc',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -456,7 +487,15 @@ const LIBELLE: Record<Etat, string> = {
 function entreeMiseAJour(): Electron.MenuItemConstructorOptions[] {
   const maj = updates.currentState()
   if (maj.statut === 'disponible') {
-    return [{ label: `Télécharger la version ${maj.version}`, click: () => void updates.telecharger() }]
+    return [
+      {
+        label:
+          process.platform === 'darwin'
+            ? `Version ${maj.version} disponible…`
+            : `Télécharger la version ${maj.version}`,
+        click: () => void updates.telecharger()
+      }
+    ]
   }
   if (maj.statut === 'telechargement') {
     return [{ label: `Téléchargement de la ${maj.version}… ${maj.progres} %`, enabled: false }]
@@ -980,6 +1019,7 @@ const TAILLE_MEMOIRE = 8000
 
 /** Le nom de l'application qui ouvre les liens, lu dans le registre. */
 function navigateurParDefaut(): string {
+  if (process.platform !== 'win32') return ''
   try {
     const choix = execFileSync(
       'reg',
@@ -1013,29 +1053,40 @@ function initialiserMemoire(): void {
   if (fs.existsSync(cheminMemoire)) return
   fs.mkdirSync(dossierMemoire, { recursive: true })
 
-  const firefox = [
-    'C:\\Program Files\\Mozilla Firefox\\firefox.exe',
-    'C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe'
-  ].find((c) => fs.existsSync(c))
+  const mac = process.platform === 'darwin'
+  const firefox = (
+    mac
+      ? ['/Applications/Firefox.app']
+      : [
+          'C:\\Program Files\\Mozilla Firefox\\firefox.exe',
+          'C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe'
+        ]
+  ).find((c) => fs.existsSync(c))
   const parDefaut = navigateurParDefaut()
 
   const lignes = [
     "# Mémoire d'Iris",
     '',
-    'Ce qu’Iris a appris sur Lucas et sur ce PC. Une ligne courte par fait.',
+    'Ce qu’Iris a appris sur la personne qui lui parle et sur cette machine. Une ligne courte par fait.',
     '',
-    '## Lucas',
-    '- Designer UI/UX à Amiens. Il tutoie, veut des réponses courtes, sans formule.',
+    `## ${reglages.prenom || 'La personne'}`,
+    // Le seul portrait connu d'avance est celui de Lucas, pour qui Iris a été
+    // faite : ailleurs, elle l'apprend en parlant.
+    ...(reglages.prenom === 'Lucas'
+      ? ['- Designer UI/UX à Amiens. Il tutoie, veut des réponses courtes, sans formule.']
+      : []),
     '',
-    '## Ce PC',
+    '## Cette machine',
     ...(firefox
       ? [
-          `- Son navigateur est Firefox : ${firefox}. Pour ouvrir un site : & "${firefox}" "<adresse>".`
+          mac
+            ? '- Son navigateur est Firefox. Pour ouvrir un site : open -a Firefox "<adresse>".'
+            : `- Son navigateur est Firefox : ${firefox}. Pour ouvrir un site : & "${firefox}" "<adresse>".`
         ]
       : []),
     ...(parDefaut && !/firefox/i.test(parDefaut)
       ? [
-          `- Le navigateur par défaut de Windows est ${parDefaut}, pas celui de Lucas : ne jamais ouvrir une adresse avec start ou Start-Process, ça lancerait ${parDefaut}, qui demande un profil.`
+          `- Le navigateur par défaut de Windows est ${parDefaut}, pas le sien : ne jamais ouvrir une adresse avec start ou Start-Process, ça lancerait ${parDefaut}, qui demande un profil.`
         ]
       : []),
     '',
@@ -1258,7 +1309,10 @@ app.whenReady().then(() => {
   // Les réglages en cours d'édition, pas ceux enregistrés : on veut entendre
   // la voix avant de valider.
   ipcMain.handle('tester-voix', async (_, recu: unknown) => {
-    const mp3 = await synthetiser("Bonjour Lucas, c'est Iris. Je t'écoute.", normalizeReglages(recu))
+    const mp3 = await (() => {
+      const r = normalizeReglages(recu)
+      return synthetiser(`Bonjour${r.prenom ? ` ${r.prenom}` : ''}, c'est Iris. Je t'écoute.`, r)
+    })()
     return mp3.toString('base64')
   })
 

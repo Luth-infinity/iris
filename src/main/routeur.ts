@@ -94,7 +94,7 @@ export function trierParRegles(question: string): Modele {
   return 'haiku'
 }
 
-const CONSIGNE_TRI = `Tu tries les demandes vocales faites à Iris, une assistante qui pilote un PC Windows avec Claude Code.
+const CONSIGNE_TRI = `Tu tries les demandes vocales faites à Iris, une assistante qui pilote un ordinateur avec Claude Code.
 Réponds UNIQUEMENT en JSON : {"niveau": "simple" | "outil" | "chantier", "suite": true | false}
 
 niveau :
@@ -113,7 +113,7 @@ async function trierParGroq(
   if (!contexte.cleGroq.startsWith('gsk_')) return null
 
   const precedent = contexte.precedent
-    ? `Échange précédent :\nLucas : ${contexte.precedent.question.slice(0, 400)}\nIris : ${contexte.precedent.reponse.slice(0, 400)}`
+    ? `Échange précédent :\nUtilisateur : ${contexte.precedent.question.slice(0, 400)}\nIris : ${contexte.precedent.reponse.slice(0, 400)}`
     : "Pas d'échange précédent."
 
   while (modeleGroq < MODELES_GROQ.length) {

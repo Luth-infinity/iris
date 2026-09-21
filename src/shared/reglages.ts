@@ -57,6 +57,8 @@ export type Reglages = {
   /** Dossier de travail de l'agent : il ne voit rien au-dessus. */
   dossier: string
   permission: Permission
+  /** Le prénom qu'Iris donne à la personne qui lui parle. '' : elle n'en dit pas. */
+  prenom: string
 }
 
 /**
@@ -68,8 +70,12 @@ export type Reglages = {
  *
  * 3 : le modèle passe en `auto`. Même raison : `sonnet` était le défaut
  * d'alors, pas un choix.
+ *
+ * 4 : le prénom devient un réglage. Il était écrit en dur (« Lucas ») avant
+ * la première version publiée : les seuls fichiers antérieurs sont les siens,
+ * ils le gardent.
  */
-const VERSION = 3
+const VERSION = 4
 
 export const REGLAGES_DEFAUT: Reglages = {
   version: VERSION,
@@ -92,7 +98,8 @@ export const REGLAGES_DEFAUT: Reglages = {
   suite: true,
   modele: 'auto',
   dossier: '',
-  permission: 'edition'
+  permission: 'edition',
+  prenom: ''
 }
 
 /**
@@ -210,6 +217,12 @@ export function normalizeReglages(brut: unknown): Reglages {
     permission:
       permission === 'lecture' || permission === 'total' || permission === 'edition'
         ? permission
-        : REGLAGES_DEFAUT.permission
+        : REGLAGES_DEFAUT.permission,
+    prenom:
+      typeof r.prenom === 'string'
+        ? r.prenom.trim().slice(0, 40)
+        : brut && version < 4
+          ? 'Lucas'
+          : ''
   }
 }

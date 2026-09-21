@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, shell } from 'electron'
 import type { AppUpdater } from 'electron-updater'
 
 /**
@@ -6,8 +6,11 @@ import type { AppUpdater } from 'electron-updater'
  *
  * Le dépôt GitHub sert de flux : `electron-builder` y publie l'installeur et
  * un `latest.yml`, `electron-updater` lit ce fichier pour savoir si une
- * version plus récente existe. Iris n’existant que sous Windows, on peut
- * aller jusqu'à l'installation — pas de signature Apple à obtenir.
+ * version plus récente existe. Sous Windows, on va jusqu'à l'installation.
+ *
+ * Sous macOS, l'installation sur place exige une application signée et
+ * notariée par Apple, ce qu'Iris n'est pas : on se contente de lire la
+ * dernière release et d'ouvrir sa page quand elle est plus récente.
  *
  * On ne télécharge ni n'installe jamais sans que quelqu'un l'ait demandé :
  * l'application se ferme pour installer, et elle est souvent en train de
@@ -30,6 +33,39 @@ const PREMIER_DELAI = 20_000
 let etat: UpdateState = { statut: 'inconnu' }
 let ecouteurs: ((e: UpdateState) => void)[] = []
 let updater: AppUpdater | null = null
+/** macOS : la page de la release plus récente, ouverte au lieu d'installer. */
+let pageMac = ''
+
+const DERNIERE = 'https://api.github.com/repos/Luth-infinity/iris/releases/latest'
+
+/** `0.2.10` > `0.2.9` : comparaison nombre par nombre, pas en texte. */
+function plusRecente(a: string, b: string): boolean {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (d !== 0) return d > 0
+  }
+  return false
+}
+
+async function verifierMac(): Promise<void> {
+  poser({ statut: 'verification' })
+  try {
+    const res = await fetch(DERNIERE, { headers: { Accept: 'application/vnd.github+json' } })
+    if (!res.ok) throw new Error(`GitHub a répondu ${res.status}`)
+    const r = (await res.json()) as { tag_name: string; html_url: string; body?: string }
+    const version = r.tag_name.replace(/^v/, '')
+    if (plusRecente(version, app.getVersion())) {
+      pageMac = r.html_url
+      poser({ statut: 'disponible', version, notes: String(r.body ?? '').slice(0, 400) })
+    } else {
+      poser({ statut: 'a-jour', verifieLe: Date.now() })
+    }
+  } catch (err) {
+    poser({ statut: 'erreur', message: String((err as Error)?.message || err).slice(0, 200) })
+  }
+}
 
 function poser(nouvel: UpdateState): void {
   etat = nouvel
@@ -86,6 +122,10 @@ function chargerUpdater(): AppUpdater | null {
 }
 
 export async function verifier(): Promise<UpdateState> {
+  if (app.isPackaged && process.platform === 'darwin') {
+    await verifierMac()
+    return etat
+  }
   const up = chargerUpdater()
   if (!up) {
     poser({ statut: 'indisponible' })
@@ -105,6 +145,11 @@ export async function verifier(): Promise<UpdateState> {
 }
 
 export async function telecharger(): Promise<void> {
+  // macOS : on télécharge le nouveau .dmg à la main, depuis la release.
+  if (process.platform === 'darwin') {
+    if (pageMac) void shell.openExternal(pageMac)
+    return
+  }
   const up = chargerUpdater()
   if (!up || etat.statut !== 'disponible') return
   poser({ statut: 'telechargement', version: etat.version, progres: 0 })
@@ -126,7 +171,7 @@ export function installer(): void {
 
 /** Vérifie au démarrage puis régulièrement — l'app reste ouverte des jours. */
 export function surveiller(): void {
-  if (!app.isPackaged || process.platform !== 'win32') {
+  if (!app.isPackaged || (process.platform !== 'win32' && process.platform !== 'darwin')) {
     poser({ statut: 'indisponible' })
     return
   }

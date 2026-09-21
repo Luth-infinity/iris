@@ -22,6 +22,8 @@ export type Contenu = {
   details: { titre: string; texte: string }[];
   telecharger: {
     windows: string;
+    mac: string;
+    macIntel: string;
     toutes: string;
     version: string;
     titre: string;
@@ -36,7 +38,7 @@ export const fr: Contenu = {
   meta: {
     title: 'Iris — une assistante vocale qui agit sur votre PC',
     description:
-      'Dites « Iris », demandez. Elle lit, écrit, lance et construit sur votre machine, puis vous répond à voix haute. Pour Windows, avec votre abonnement Claude.'
+      'Dites « Iris », demandez. Elle lit, écrit, lance et construit sur votre machine, puis vous répond à voix haute. Pour Windows et macOS, avec votre abonnement Claude.'
   },
   nav: {
     echange: 'Comment ça se passe',
@@ -47,8 +49,8 @@ export const fr: Contenu = {
   hero: {
     titre: ['Dites « Iris ».', 'Elle s’en occupe.'],
     texte:
-      'Une assistante vocale pour Windows qui agit vraiment sur votre machine : elle lit vos fichiers, en écrit, lance des commandes, monte un projet. Vous parlez, elle répond à voix haute, en une ou deux phrases.',
-    mention: 'Windows · gratuit · s’appuie sur Claude Code'
+      'Une assistante vocale pour Windows et macOS qui agit vraiment sur votre machine : elle lit vos fichiers, en écrit, lance des commandes, monte un projet. Vous parlez, elle répond à voix haute, en une ou deux phrases.',
+    mention: 'Windows et macOS · gratuit · s’appuie sur Claude Code'
   },
   barre: {
     phrase: 'Je t’écoute.',
@@ -136,6 +138,8 @@ export const fr: Contenu = {
   ],
   telecharger: {
     windows: 'Télécharger pour Windows',
+    mac: 'Télécharger pour Mac',
+    macIntel: 'Mac Intel',
     toutes: 'Toutes les versions',
     version: 'Version',
     titre: 'Avant de l’installer',
@@ -149,8 +153,8 @@ export const fr: Contenu = {
         texte: 'Gratuite, à coller dans les paramètres d’Iris. Déjà là si vous utilisez VoiceType.'
       },
       {
-        titre: 'Windows 10 ou 11',
-        texte: 'Elle parle français, et se met à jour toute seule depuis le menu de son icône.'
+        titre: 'Windows ou macOS',
+        texte: 'Elle parle français. Sur Mac, la première ouverture se fait par clic droit, puis Ouvrir : l’app n’est pas signée par Apple.'
       }
     ],
     cle: 'Créer une clé Groq'
@@ -163,7 +167,7 @@ export const en: Contenu = {
   meta: {
     title: 'Iris — a voice assistant that acts on your PC',
     description:
-      'Say “Iris” and ask. She reads, writes, runs and builds on your machine, then answers out loud. For Windows, on your Claude subscription.'
+      'Say “Iris” and ask. She reads, writes, runs and builds on your machine, then answers out loud. For Windows and macOS, on your Claude subscription.'
   },
   nav: {
     echange: 'How it goes',
@@ -174,8 +178,8 @@ export const en: Contenu = {
   hero: {
     titre: ['Say “Iris”.', 'She’ll handle it.'],
     texte:
-      'A voice assistant for Windows that actually acts on your machine: she reads your files, writes new ones, runs commands, sets up a project. You talk, she answers out loud, in a sentence or two.',
-    mention: 'Windows · free · built on Claude Code'
+      'A voice assistant for Windows and macOS that actually acts on your machine: she reads your files, writes new ones, runs commands, sets up a project. You talk, she answers out loud, in a sentence or two.',
+    mention: 'Windows and macOS · free · built on Claude Code'
   },
   barre: {
     phrase: 'Je t’écoute.',
@@ -263,6 +267,8 @@ export const en: Contenu = {
   ],
   telecharger: {
     windows: 'Download for Windows',
+    mac: 'Download for Mac',
+    macIntel: 'Intel Mac',
     toutes: 'All releases',
     version: 'Version',
     titre: 'Before you install',
@@ -276,8 +282,8 @@ export const en: Contenu = {
         texte: 'Free, pasted into Iris’s settings. Already there if you use VoiceType.'
       },
       {
-        titre: 'Windows 10 or 11',
-        texte: 'She speaks French, and updates herself from her tray icon menu.'
+        titre: 'Windows or macOS',
+        texte: 'She speaks French. On a Mac, open her the first time with right-click, then Open: the app is not signed by Apple.'
       }
     ],
     cle: 'Get a Groq key'

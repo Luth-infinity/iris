@@ -1,6 +1,6 @@
 # Iris
 
-Une assistante vocale de bureau, pour Windows. On dit « Iris » (ou
+Une assistante vocale de bureau, pour Windows et macOS. On dit « Iris » (ou
 Ctrl + Maj + Espace), on parle, elle répond à voix haute, et elle agit vraiment
 sur la machine : lire des fichiers, en écrire, lancer des commandes, monter un
 projet.
@@ -20,6 +20,7 @@ Site : [iris-luth.vercel.app](https://iris-luth.vercel.app) · Téléchargement 
 
 - Claude Code installé et connecté : `claude auth login` une fois dans un terminal.
 - Une clé Groq, à coller dans les paramètres (reprise de VoiceType si elle y est).
+- Sur Mac, l'app n'est pas signée : première ouverture par clic droit, puis Ouvrir.
 
 ## À l'écran
 

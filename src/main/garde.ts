@@ -28,13 +28,17 @@ export type Garde = { port: number; jeton: string; commande: string }
  * alors comme de simples scripts.
  */
 function trouverNode(): string | null {
+  const windows = process.platform === 'win32'
   try {
-    const sortie = execFileSync('where', ['node'], { encoding: 'utf-8', windowsHide: true })
+    const sortie = execFileSync(windows ? 'where' : 'which', ['node'], {
+      encoding: 'utf-8',
+      windowsHide: true
+    })
     return (
       sortie
         .split(/\r?\n/)
         .map((l) => l.trim())
-        .find((l) => l.toLowerCase().endsWith('node.exe')) ?? null
+        .find((l) => (windows ? l.toLowerCase().endsWith('node.exe') : l.startsWith('/'))) ?? null
     )
   } catch {
     return null

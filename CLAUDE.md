@@ -348,21 +348,60 @@ ne redimensionne rien.
 
 ## Publier une version
 
-Dépôt public `Luth-infinity/iris`, Windows seulement (claude.exe, taskkill,
-cmd : rien n'a de sens sur macOS). Numérotation en `0.x`, ne jamais passer
-`1.0.0` (`electron-updater` ne redescend pas).
+Dépôt public `Luth-infinity/iris`, pour **Windows et macOS**. Numérotation en
+`0.x`, ne jamais passer `1.0.0` (`electron-updater` ne redescend pas).
 
-1. Bump `package.json`.
-2. `npm run dist:win` → `dist/Iris-Setup-x.y.z.exe`, son `.blockmap`, `latest.yml`.
-3. `gh release create vx.y.z` avec **les trois fichiers** : sans `latest.yml`,
-   les installations existantes ne voient jamais la mise à jour.
-4. Notes : français, puis `## English` et sa traduction. Le site en garde
-   quatre lignes par version (> 25 caractères, pas de `#`, `**`, `>` en tête).
+Les binaires ne se construisent pas ici : `.github/workflows/release.yml`
+(repris de VoiceType) construit l'installeur Windows et les deux `.dmg` (Intel
+et Apple Silicon) à chaque tag `vX.Y.Z`, les joint à une release brouillon,
+puis la publie une fois les deux jobs réussis. Le `.dmg` ne se fabrique que
+sur macOS, d'où le runner.
 
-`src/main/updates.ts` (repris de VoiceType) vérifie 20 s après le démarrage
-puis toutes les deux heures ; tout passe par le menu de l'icône, et rien ne
+1. Bump `package.json`, commit, push.
+2. `gh release create vX.Y.Z --draft --title vX.Y.Z --notes-file …` : les
+   notes d'abord, en brouillon. Français, puis `## English` et sa traduction ;
+   le site en garde quatre lignes par version (> 25 caractères, pas de `#`,
+   `**`, `>` en tête).
+3. `git tag vX.Y.Z` puis `git push origin vX.Y.Z` : le workflow complète le
+   brouillon et le publie. Suivre avec `gh run watch`.
+
+`src/main/updates.ts` : sous Windows, `electron-updater` télécharge et
+installe sur place (il faut le `latest.yml` que le workflow joint). Sous
+macOS, l'installation sur place exige une app signée et notariée : Iris lit
+la dernière release et ouvre sa page. Vérification 20 s après le démarrage
+puis toutes les deux heures, tout passe par le menu de l'icône, et rien ne
 s'installe sans clic. Installer pose `quitte = true`, sinon les fenêtres qui
 se cachent au lieu de se fermer retiennent la sortie.
+
+## macOS
+
+Écrit et construit par le runner, **jamais lancé sur un vrai Mac** au
+21/09/2026. Ce qui a été adapté :
+
+- **PATH** : une app ouverte depuis le Finder n'a que `/usr/bin:/bin…`. Celui
+  du shell de connexion est repris au démarrage (`index.ts`), avec
+  `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`.
+- **Claude Code** : emplacements connus d'abord (`commandeClaude`), puis
+  `claude` dans le PATH.
+- **Arrêt** : l'agent est lancé en tête de son groupe de processus
+  (`detached`), et `tuer` signale le groupe entier, l'équivalent de
+  `taskkill /t`.
+- **Connexion des comptes** : `assets/outils/iris-connecter` +
+  `connexion.sh`, qui ouvrent une fenêtre du Terminal par `osascript`, puis
+  Firefox en navigation privée. Ces deux fichiers doivent rester en LF
+  (`.gitattributes`) et exécutables (`git update-index --chmod=+x`).
+- **Fenêtres** : l'overlay suit sur les bureaux plein écran
+  (`setVisibleOnAllWorkspaces`) ; historique et paramètres gardent un cadre
+  classique, sans quoi les pastilles de fermeture disparaissent.
+- `LSUIElement` : pas d'icône dans le Dock, Iris vit dans la barre des menus.
+- L'app n'est pas signée : première ouverture par clic droit, puis Ouvrir.
+
+## Le prénom
+
+La consigne, la mémoire de départ et la voix d'essai disaient « Lucas » en
+dur. C'est devenu le réglage `prenom` (réglages version 4) : les fichiers
+antérieurs, qui ne peuvent être que les siens, reçoivent « Lucas » ; une
+nouvelle installation part vide, et Iris ne nomme alors personne.
 
 ## Le site
 

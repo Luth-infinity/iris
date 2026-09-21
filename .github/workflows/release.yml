@@ -1,0 +1,63 @@
+# Construit l’installeur Windows et les deux .dmg, et les joint à la release.
+#
+# Le .dmg ne se construit que sur macOS : hdiutil et sips sont des outils
+# Apple non redistribuables, et electron-builder refuse explicitement la
+# tentative depuis Windows. Un runner macOS lève cette contrainte — c'est la
+# seule raison d'être de ce fichier.
+#
+# Déclenché par un tag `vX.Y.Z`. Chaque job publie dans une release brouillon
+# qu'electron-builder crée ou complète, puis un dernier job la rend publique :
+# publier avant que les deux binaires n'existent afficherait des liens morts.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --win --x64 --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Aucun certificat : sans ce drapeau, electron-builder part chercher
+          # une identité de signature et échoue.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --mac --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+  publier:
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sortir la release du brouillon
+        run: gh release edit "${GITHUB_REF_NAME}" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

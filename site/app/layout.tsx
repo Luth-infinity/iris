@@ -23,8 +23,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
         {/* Marque la page comme animable seulement si JS tourne : sans cela, un
-            échec de script laisserait tout le contenu invisible. */}
-        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js');" }} />
+            échec de script laisserait tout le contenu invisible. Le même script
+            note la plateforme, pour ne proposer que le bon binaire, avant le
+            rendu : le mauvais bouton n'apparaît pas une fraction de seconde.
+            Plateforme inconnue = les deux. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `document.documentElement.classList.add('js');
+try {
+  var ua = navigator.userAgent || '';
+  var pf = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+  // Un iPad se déclare « MacIntel » : on le distingue par le tactile.
+  var tactile = navigator.maxTouchPoints > 1;
+  var os = '';
+  if (/win/i.test(pf) || /Windows/.test(ua)) os = 'win';
+  else if ((/mac/i.test(pf) || /Mac OS X/.test(ua)) && !tactile) os = 'mac';
+  if (os) document.documentElement.dataset.os = os;
+} catch (e) {}`
+          }}
+        />
       </head>
       <body className="font-sans">{children}</body>
     </html>

@@ -15,6 +15,8 @@ export type Release = {
 export type Telechargements = {
   version: string;
   win: string | null;
+  macArm: string | null;
+  macIntel: string | null;
 };
 
 type ReleaseApi = {
@@ -89,16 +91,25 @@ export async function getReleases(langue: Langue = 'fr'): Promise<Release[]> {
 }
 
 /**
- * Le lien de téléchargement est lu sur la dernière release, jamais écrit à la
- * main : un numéro de version en dur dans la page finit toujours par pointer
- * vers un fichier supprimé. Sans installeur joint, le bouton renvoie vers la
- * page des versions plutôt que vers le vide.
+ * Les liens de téléchargement sont lus sur la dernière release, jamais écrits
+ * à la main : un numéro de version en dur dans la page finit toujours par
+ * pointer vers un fichier supprimé.
+ *
+ * Une plateforme peut manquer — une version publiée avant que le runner macOS
+ * n'existe, ou une construction qui a échoué. Les boutons correspondants
+ * renvoient alors vers la page des versions plutôt que vers le vide.
  */
 export async function getTelechargements(): Promise<Telechargements> {
   const derniere = (await lire())[0];
-  if (!derniere) return { version: '', win: null };
+  if (!derniere) return { version: '', win: null, macArm: null, macIntel: null };
+
+  const url = (test: (nom: string) => boolean): string | null =>
+    derniere.assets.find((a) => test(a.name))?.browser_download_url ?? null;
+
   return {
     version: derniere.tag_name.replace(/^v/, ''),
-    win: derniere.assets.find((a) => a.name.endsWith('.exe'))?.browser_download_url ?? null
+    win: url((n) => n.endsWith('.exe')),
+    macArm: url((n) => n.endsWith('.dmg') && n.includes('arm64')),
+    macIntel: url((n) => n.endsWith('.dmg') && !n.includes('arm64'))
   };
 }

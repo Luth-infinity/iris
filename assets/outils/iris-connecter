@@ -1,0 +1,16 @@
+#!/bin/sh
+# Ouvre la connexion d'un serveur MCP dans une fenêtre du Terminal et rend la
+# main tout de suite. Le dossier courant compte : les serveurs sont déclarés
+# pour le dossier de travail d'Iris.
+if [ -z "$1" ]; then
+  echo "Usage : iris-connecter nom-du-serveur"
+  exit 1
+fi
+case "$1" in
+  *[!A-Za-z0-9._-]*) echo "Nom de serveur invalide."; exit 1 ;;
+esac
+
+ici="$(cd "$(dirname "$0")" && pwd)"
+commande="cd '$(pwd)' && sh '$ici/connexion.sh' '$1'"
+osascript -e "tell application \"Terminal\" to do script \"$commande\"" -e 'tell application "Terminal" to activate' >/dev/null
+echo "Fenêtre de connexion ouverte pour $1."

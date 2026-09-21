@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { existsSync } from 'fs'
 import { delimiter, dirname, join } from 'path'
+import { homedir } from 'os'
 import { consigne, type EvenementTour, type Outil, type Tache } from '@shared/conversation'
 import { PERMISSIONS, type Reglages } from '@shared/reglages'
 import type { Modele } from './routeur'
@@ -68,7 +69,17 @@ function commandeClaude(): { commande: string; shell: boolean } {
     // par un (voir `proteger`).
     return { commande: 'claude.cmd', shell: true }
   }
-  return { commande: 'claude', shell: false }
+  // macOS : le PATH du shell est repris au démarrage (voir `index.ts`), mais
+  // on tente d'abord les emplacements d'installation connus.
+  const maison = homedir()
+  const connus = [
+    join(maison, '.local', 'bin', 'claude'),
+    join(maison, '.claude', 'local', 'claude'),
+    '/opt/homebrew/bin/claude',
+    '/usr/local/bin/claude',
+    join(maison, '.npm-global', 'bin', 'claude')
+  ]
+  return { commande: connus.find((c) => existsSync(c)) ?? 'claude', shell: false }
 }
 
 /** Met un argument entre guillemets quand il doit traverser `cmd.exe`. */
@@ -257,14 +268,20 @@ function tuer(p: Processus | null | undefined): void {
   // installation), et tuer le seul parent les laisserait tourner en silence.
   if (process.platform === 'win32' && p.enfant.pid) {
     spawn('taskkill', ['/pid', String(p.enfant.pid), '/t', '/f'], { windowsHide: true })
-  } else {
-    p.enfant.kill()
+  } else if (p.enfant.pid) {
+    // Lancé en tête de son propre groupe : le signal au groupe emporte aussi
+    // les commandes de l'agent.
+    try {
+      process.kill(-p.enfant.pid, 'SIGTERM')
+    } catch {
+      p.enfant.kill()
+    }
   }
 }
 
 function lancer(modele: Modele, reglages: Reglages, reprendre?: string): Processus {
   const { commande, shell } = commandeClaude()
-  const dossier = reglages.dossier || process.env.USERPROFILE || process.cwd()
+  const dossier = reglages.dossier || homedir()
   const usuels = dossiersUsuels()
   const mem = memoire()
   const mode = modeEffectif(reglages)
@@ -285,7 +302,7 @@ function lancer(modele: Modele, reglages: Reglages, reprendre?: string): Process
     // En mode non interactif, personne ne répondrait à la demande
     // d'autorisation : la connexion d'un compte passerait à la trappe.
     '--allowedTools',
-    'Bash(iris-connecter.cmd:*)',
+    process.platform === 'win32' ? 'Bash(iris-connecter.cmd:*)' : 'Bash(iris-connecter:*)',
     // Option à valeurs multiples : elle doit être suivie d'une autre option,
     // sinon elle avalerait ce qui vient après comme un dossier de plus.
     '--add-dir',
@@ -296,7 +313,10 @@ function lancer(modele: Modele, reglages: Reglages, reprendre?: string): Process
     // pas dans la session. Une conversation reprise sans elle oubliait de
     // répondre court et de ne pas lire les chemins.
     '--append-system-prompt',
-    consigne(dossier, usuels, mem)
+    consigne(dossier, usuels, mem, {
+      prenom: reglages.prenom,
+      mac: process.platform === 'darwin'
+    })
   ]
   if (reprendre) args.push('--resume', reprendre)
 
@@ -322,6 +342,8 @@ function lancer(modele: Modele, reglages: Reglages, reprendre?: string): Process
     cwd: dossier,
     shell,
     windowsHide: true,
+    // Hors Windows, un groupe de processus à lui : `tuer` l'arrête en entier.
+    detached: process.platform !== 'win32',
     env: {
       ...process.env,
       ...avecOutils(),
@@ -653,7 +675,7 @@ export type Compte = { nom: string; connecte: boolean }
  */
 export function listerComptes(reglages: Reglages): Promise<Compte[]> {
   const { commande, shell } = commandeClaude()
-  const dossier = reglages.dossier || process.env.USERPROFILE || process.cwd()
+  const dossier = reglages.dossier || homedir()
   return new Promise((resolve) => {
     execFile(
       commande,
@@ -679,8 +701,12 @@ export function listerComptes(reglages: Reglages): Promise<Compte[]> {
  */
 export function connecterCompte(nom: string, reglages: Reglages): void {
   if (!/^[\w.-]+$/.test(nom)) return
-  const dossier = reglages.dossier || process.env.USERPROFILE || process.cwd()
-  spawn('cmd.exe', ['/c', join(dossierOutils, 'iris-connecter.cmd'), nom], {
+  const dossier = reglages.dossier || homedir()
+  const [commande, args] =
+    process.platform === 'win32'
+      ? ['cmd.exe', ['/c', join(dossierOutils, 'iris-connecter.cmd'), nom]]
+      : [join(dossierOutils, 'iris-connecter'), [nom]]
+  spawn(commande, args, {
     cwd: dossier,
     windowsHide: true,
     detached: true,

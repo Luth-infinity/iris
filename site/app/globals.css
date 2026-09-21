@@ -134,3 +134,11 @@
     animation: none;
   }
 }
+
+/* Le visiteur ne télécharge qu'une plateforme : le script du <head> pose
+   `data-os` avant le rendu, on masque donc l'autre sans clignotement.
+   Plateforme inconnue (ou JS coupé) : rien n'est masqué. */
+html[data-os='mac'] [data-cta='win'],
+html[data-os='win'] [data-cta='mac'] {
+  display: none;
+}

@@ -330,6 +330,14 @@ export default function Parametres(): JSX.Element {
             abonnement, pas une facturation à l’appel.
           </p>
 
+          <Ligne titre="Votre prénom" aide="Iris vous appelle ainsi. Vide, elle ne vous nomme pas.">
+            <Input
+              value={reglages.prenom}
+              onChange={(e) => modifier({ prenom: e.target.value })}
+              maxLength={40}
+            />
+          </Ligne>
+
           <Ligne titre="Modèle">
             <Select value={reglages.modele} onChange={(e) => modifier({ modele: e.target.value })}>
               {MODELES.map((m) => (

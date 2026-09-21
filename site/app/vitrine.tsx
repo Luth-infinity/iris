@@ -170,28 +170,68 @@ function Pastille({ t }: { t: Contenu }) {
   );
 }
 
-function BoutonTelecharger({ t, dl }: { t: Contenu; dl: Telechargements }) {
+function LogoWindows() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M1 2.6l5.7-.8v5.5H1V2.6zm0 10.8l5.7.8V8.7H1v4.7zm6.4.9L15 15.4V8.7H7.4v5.6zm0-12.6v5.6H15V.6L7.4 1.7z"
+      />
+    </svg>
+  );
+}
+
+function LogoApple() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M11.2 8.5c0-1.6 1.3-2.3 1.4-2.4-.8-1.1-1.9-1.3-2.3-1.3-1-.1-1.9.6-2.4.6-.5 0-1.3-.6-2.1-.5-1.1 0-2.1.6-2.6 1.6-1.1 1.9-.3 4.8.8 6.3.5.8 1.1 1.6 1.9 1.6.8 0 1-.5 2-.5.9 0 1.2.5 2 .5.8 0 1.3-.8 1.8-1.5.6-.9.8-1.7.8-1.8 0 0-1.3-.6-1.3-2.6zM9.7 3.8c.4-.5.7-1.2.6-1.9-.6 0-1.4.4-1.8.9-.4.4-.7 1.1-.6 1.8.7.1 1.4-.3 1.8-.8z"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Les boutons de téléchargement. `data-cta` laisse le script du <head> masquer
+ * le système qui n'est pas celui du visiteur ; inconnu, les deux restent.
+ */
+function BoutonTelecharger({
+  t,
+  dl,
+  sombre = false
+}: {
+  t: Contenu;
+  dl: Telechargements;
+  sombre?: boolean;
+}) {
+  const principal = `inline-flex items-center gap-2.5 rounded-full px-6 py-3 text-[15px] font-medium transition hover:opacity-85 ${
+    sombre ? 'bg-white text-nuit' : 'bg-ink text-page'
+  }`;
+  const second = `text-sm underline-offset-4 hover:underline ${
+    sombre ? 'text-nuit-soft hover:text-white' : 'text-ink-soft hover:text-ink'
+  }`;
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-      <a
-        href={dl.win ?? PAGE_VERSIONS}
-        className="inline-flex items-center gap-2.5 rounded-full bg-ink px-6 py-3 text-[15px] font-medium text-page transition hover:opacity-85"
-      >
-        <svg viewBox="0 0 16 16" className="size-4" aria-hidden>
-          <path
-            fill="currentColor"
-            d="M1 2.6l5.7-.8v5.5H1V2.6zm0 10.8l5.7.8V8.7H1v4.7zm6.4.9L15 15.4V8.7H7.4v5.6zm0-12.6v5.6H15V.6L7.4 1.7z"
-          />
-        </svg>
+      <a data-cta="win" href={dl.win ?? PAGE_VERSIONS} className={principal}>
+        <LogoWindows />
         {t.telecharger.windows}
       </a>
-      <span className="text-sm text-ink-soft">
+      <a data-cta="mac" href={dl.macArm ?? PAGE_VERSIONS} className={principal}>
+        <LogoApple />
+        {t.telecharger.mac}
+      </a>
+      <span className={`text-sm ${sombre ? 'text-nuit-soft' : 'text-ink-soft'}`}>
         {dl.version && (
           <>
             {t.telecharger.version} {dl.version} ·{' '}
           </>
         )}
-        <a href={PAGE_VERSIONS} className="underline-offset-4 hover:text-ink hover:underline">
+        <a data-cta="mac" href={dl.macIntel ?? PAGE_VERSIONS} className={second}>
+          {t.telecharger.macIntel}
+        </a>
+        <span data-cta="mac"> · </span>
+        <a href={PAGE_VERSIONS} className={second}>
           {t.telecharger.toutes}
         </a>
       </span>
@@ -330,25 +370,15 @@ export default async function Vitrine({ t, locale }: { t: Contenu; locale: Langu
                 </li>
               ))}
             </ol>
-            <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-4">
-              <a
-                href={dl.win ?? PAGE_VERSIONS}
-                className="inline-flex items-center gap-2.5 rounded-full bg-white px-6 py-3 text-[15px] font-medium text-nuit transition hover:opacity-85"
-              >
-                {t.telecharger.windows}
-              </a>
-              <a
-                href={CLE_GROQ}
-                className="text-sm text-nuit-soft underline-offset-4 hover:text-white hover:underline"
-              >
-                {t.telecharger.cle} →
-              </a>
-              {dl.version && (
-                <span className="text-sm text-nuit-soft">
-                  {t.telecharger.version} {dl.version}
-                </span>
-              )}
+            <div className="mt-12">
+              <BoutonTelecharger t={t} dl={dl} sombre />
             </div>
+            <a
+              href={CLE_GROQ}
+              className="mt-6 inline-block text-sm text-nuit-soft underline-offset-4 hover:text-white hover:underline"
+            >
+              {t.telecharger.cle} →
+            </a>
           </div>
         </section>
 

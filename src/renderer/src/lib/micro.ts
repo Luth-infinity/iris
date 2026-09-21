@@ -68,7 +68,9 @@ export async function ouvrirMicro(
     if (nom === 'NotAllowedError') {
       throw new ErreurMicro({
         titre: 'Accès au micro refusé',
-        detail: 'Windows → Confidentialité → Microphone.'
+        detail: /Mac/i.test(navigator.platform)
+          ? 'Réglages Système → Confidentialité et sécurité → Micro.'
+          : 'Windows → Confidentialité → Microphone.'
       })
     }
     throw new ErreurMicro({ titre: 'Micro indisponible', detail: nom })
