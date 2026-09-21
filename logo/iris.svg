@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    L'iris : un anneau ouvert et un noyau, dans l'esprit d'un diaphragme.
+    Le glyphe occupe ~62 % de la tuile, comme les autres icônes de Luth, et
+    reste lisible à 16 px parce qu'il n'y a que deux formes pleines.
+  -->
+  <defs>
+    <linearGradient id="anneau" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a9a0ff" />
+      <stop offset="1" stop-color="#6f5bf5" />
+    </linearGradient>
+    <radialGradient id="noyau" cx="0.36" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#ffffff" />
+      <stop offset="1" stop-color="#cfc8ff" />
+    </radialGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="#1b1c1f" />
+
+  <!-- Anneau ouvert en haut à droite : l'ouverture évite l'effet « cible ». -->
+  <path
+    d="M 128 48 A 80 80 0 1 0 208 128"
+    fill="none"
+    stroke="url(#anneau)"
+    stroke-width="17"
+    stroke-linecap="round"
+  />
+  <circle cx="128" cy="128" r="34" fill="url(#noyau)" />
+</svg>

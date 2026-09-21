@@ -1,0 +1,136 @@
+@import 'tailwindcss';
+
+/**
+ * Iris n'a pas d'écran à elle : elle apparaît par-dessus le vôtre, puis
+ * s'efface. La page est donc blanche, comme un bureau, et ce qui appartient à
+ * Iris y est posé en sombre — la barre, la pastille, ses bulles.
+ *
+ * Aucune couleur hors du noir, du blanc et des gris : la seule couleur de la
+ * page est celle de l'icône, comme sur les autres sites de Luth.
+ */
+@theme {
+  --font-sans: 'Instrument Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --color-page: #ffffff;
+  --color-canvas: #f4f4f5;
+  --color-ink: #0c0c0e;
+  --color-ink-soft: #6a6d74;
+  --color-line: #e5e6e9;
+  /* Ce qu'Iris montre à l'écran, dans l'application aussi. */
+  --color-nuit: #111214;
+  --color-nuit-2: #1a1b1f;
+  --color-nuit-line: #2a2c31;
+  --color-nuit-soft: #8c9098;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    background: var(--color-page);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--color-ink);
+    color: var(--color-page);
+  }
+}
+
+@utility headline {
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+/* Les sections se révèlent au défilement, sans jamais rester invisibles si
+   l'observateur ne se déclenche pas : l'état par défaut est déjà lisible. */
+@utility reveal {
+  opacity: 1;
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .js .reveal {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  .js .reveal[data-visible='true'] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* L'anneau, rejoué en HTML : une couronne de traits qui suit la voix. Chaque
+   trait part du bord intérieur et s'allonge vers l'extérieur, à son rythme. */
+.anneau {
+  position: relative;
+}
+
+.anneau .trait {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--epaisseur, 2px);
+  height: var(--longueur, 22px);
+  margin-left: calc(var(--epaisseur, 2px) / -2);
+  transform-origin: 50% 0;
+  transform: rotate(var(--angle)) translateY(var(--rayon));
+}
+
+.anneau .trait span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: 50% 0;
+  animation: voix var(--duree, 1s) ease-in-out infinite;
+  animation-delay: var(--delai, 0s);
+}
+
+@keyframes voix {
+  0%,
+  100% {
+    transform: scaleY(0.18);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* Au travail, une comète fait le tour de la pastille. */
+@keyframes comete {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.comete {
+  animation: comete 1.6s linear infinite;
+}
+
+@keyframes tourne {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tourne {
+  animation: tourne 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anneau .trait span {
+    animation: none;
+    transform: scaleY(0.5);
+  }
+  .comete,
+  .tourne {
+    animation: none;
+  }
+}

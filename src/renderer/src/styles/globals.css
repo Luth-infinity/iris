@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Palette reprise de Hublink et VoiceType : neutres en oklch, et une seconde
+ * famille « shell » pour les surfaces de l'application — quasi blanche en
+ * clair, quasi noire en sombre, avec une pointe de bleu (teinte 265) qui se
+ * devine sans assombrir.
+ *
+ * S'y ajoute `iris`, la seule couleur propre à cette application : un violet
+ * bleuté réservé aux états vivants (écoute, réflexion, parole). Aucune surface
+ * ne la porte, sinon l'application entière deviendrait violette.
+ *
+ * Les variables ne portent que les composantes, pas la fonction : Tailwind y
+ * injecte `<alpha-value>` et les modificateurs d'opacité (`bg-iris/10`)
+ * continuent de fonctionner.
+ */
+@layer base {
+  :root {
+    --radius: 0.625rem;
+
+    --background: 1 0 0;
+    --foreground: 0.145 0 0;
+    --card: 1 0 0;
+    --card-foreground: 0.145 0 0;
+    --primary: 0.205 0 0;
+    --primary-foreground: 0.985 0 0;
+    --secondary: 0.97 0 0;
+    --secondary-foreground: 0.205 0 0;
+    --muted: 0.97 0 0;
+    --muted-foreground: 0.556 0 0;
+    --accent: 0.97 0 0;
+    --accent-foreground: 0.205 0 0;
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.985 0 0;
+    --positive: 0.596 0.145 163;
+    --border: 0.922 0 0;
+    --input: 0.922 0 0;
+    --ring: 0.708 0 0;
+
+    --iris: 0.54 0.19 276;
+    --iris-foreground: 0.99 0 0;
+    --iris-soft: 0.94 0.035 276;
+
+    --shell: 0.991 0.001 265;
+    --shell-raised: 1 0 0;
+    --shell-border: 0.935 0.003 265;
+    --shell-foreground: 0.26 0.012 265;
+    --shell-muted: 0.53 0.014 265;
+  }
+
+  .dark {
+    --background: 0.145 0 0;
+    --foreground: 0.985 0 0;
+    --card: 0.205 0 0;
+    --card-foreground: 0.985 0 0;
+    --primary: 0.922 0 0;
+    --primary-foreground: 0.205 0 0;
+    --secondary: 0.269 0 0;
+    --secondary-foreground: 0.985 0 0;
+    --muted: 0.269 0 0;
+    --muted-foreground: 0.708 0 0;
+    --accent: 0.269 0 0;
+    --accent-foreground: 0.985 0 0;
+    --destructive: 0.66 0.215 24;
+    --destructive-foreground: 0.985 0 0;
+    --positive: 0.72 0.16 163;
+    --border: 0.32 0.005 265;
+    --input: 0.35 0.006 265;
+    --ring: 0.556 0 0;
+
+    --iris: 0.72 0.16 276;
+    --iris-foreground: 0.18 0.02 276;
+    --iris-soft: 0.33 0.075 276;
+
+    --shell: 0.185 0.004 265;
+    --shell-raised: 0.23 0.005 265;
+    --shell-border: 0.32 0.008 265;
+    --shell-foreground: 0.95 0.004 265;
+    --shell-muted: 0.74 0.008 265;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border-color: oklch(var(--shell-border));
+  }
+
+  body {
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', Inter, system-ui,
+      sans-serif;
+    font-size: 13px;
+    /* La fenêtre de l'overlay est transparente : rien ne doit peindre son fond,
+       sinon elle masquerait la fenêtre survolée au lieu de flotter dessus. Les
+       deux autres pages posent le leur. */
+    background: transparent;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  /* Barre de défilement discrète : celle de Windows coupe la fenêtre en deux. */
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(var(--shell-border));
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
+  }
+  /* Sans ça, le coin où se croisent deux barres reste blanc. */
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(var(--shell-muted) / 0.6);
+    background-clip: content-box;
+  }
+}
+
+@layer utilities {
+  /* Zone de déplacement de la fenêtre sans barre de titre. */
+  .deplacer {
+    -webkit-app-region: drag;
+  }
+  .cliquable {
+    -webkit-app-region: no-drag;
+  }
+}
