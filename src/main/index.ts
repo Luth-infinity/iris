@@ -797,6 +797,8 @@ function replierOverlay(delai: number): void {
 let tourCourant = 0
 /** Tour pour lequel l'accès a déjà été demandé : on ne le redemande pas. */
 let refusDemande = -1
+/** La demande en cours, pour la refaire telle quelle une fois l'accès donné. */
+let questionCourante = ''
 
 /**
  * Abandonne le tour en cours : agent, voix, micro et lecture.
@@ -842,6 +844,7 @@ async function poser(question: string): Promise<void> {
   }
 
   const monTour = ++tourCourant
+  questionCourante = propre
   /** Le tour a été abandonné entre-temps : il ne touche plus à rien. */
   const perime = (): boolean => monTour !== tourCourant
 
@@ -1080,7 +1083,10 @@ function demanderConfirmation(action: string): Promise<boolean> {
 
     const phrase = `${action.replace(/[.\s]+$/, '')}. Tu confirmes ?`
     desarmerRetrait()
-    diffuser('confirmation', phrase)
+    // Même forme que les autres questions : depuis que la barre attend un
+    // objet, la confirmation ne s'affichait plus — on attendait une réponse
+    // devant un écran muet.
+    diffuser('confirmation', { texte: phrase, genre: 'confirmation' })
 
     if (!reglages.parler) {
       void ecouter('confirmation')
@@ -1191,7 +1197,15 @@ async function demanderAutorisation(raison: string): Promise<boolean> {
   return true
 }
 
-/** Passe Iris en accès complet, et relance les Claude Code d'avance. */
+/**
+ * Passe Iris en accès complet, relance les Claude Code d'avance, et **reprend
+ * la demande en cours**.
+ *
+ * Sans cette reprise, autoriser en plein travail ne servait à rien : le
+ * processus déjà lancé garde les droits qu'il avait au départ, et l'agent
+ * répondait qu'il ne pouvait toujours pas. C'est ce qui faisait dire « même
+ * quand j'autorise, ça ne marche pas ».
+ */
 function accorderTout(): void {
   reglages = { ...reglages, permission: 'total', etendu: true }
   enregistrerReglages(reglages)
@@ -1199,6 +1213,13 @@ function accorderTout(): void {
   cerveau.invalider(reglages)
   diffuser('reglages', reglages)
   noter('autorisation accordée : accès complet')
+
+  const reprise = questionCourante
+  if (!tourEnCours || !reprise) return
+  noter('reprise de la demande avec les nouveaux droits')
+  abandonnerTour()
+  // Le temps que les processus repartent avec la nouvelle empreinte.
+  setTimeout(() => void poser(reprise), 150)
 }
 
 function terminerConfirmation(ok: boolean, raison: string): void {
@@ -1734,6 +1755,13 @@ app.whenReady().then(() => {
   ipcMain.on('ouvrir-lien', (_, url: unknown) => {
     // Seules les adresses du guide, et seulement en clair sur le réseau.
     if (typeof url === 'string' && url.startsWith('https://')) void shell.openExternal(url)
+  })
+
+  /** Le bouton de la barre, pour une action à confirmer. */
+  ipcMain.on('repondre-confirmation', (_, oui: boolean) => {
+    if (!confirmation) return
+    overlay?.webContents.send('taire')
+    terminerConfirmation(oui, oui ? 'bouton oui' : 'bouton non')
   })
 
   /** Le bouton de la barre : accorder ou refuser l'accès sans parler. */

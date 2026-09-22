@@ -26,6 +26,7 @@ import http from 'http'
  */
 export type Garde = { port: number; jeton: string; hook: string | null }
 
+
 /**
  * Le hook tourne sous Node. On prend celui de la machine plutôt que de
  * relancer Electron en mode Node : la variable qu'il faut pour ça serait

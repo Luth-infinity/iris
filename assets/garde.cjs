@@ -49,11 +49,49 @@ function dedans(cible, dossier) {
  * Ce qu'il faut faire confirmer, en une phrase prononçable, ou `null` si
  * l'action peut passer sans rien demander.
  */
+/**
+ * Les chemins visés par une commande. Un chemin relatif est rendu tel quel :
+ * l'agent travaille dans le dossier courant.
+ */
+function ciblesDe(commande) {
+  const absolus = [...commande.matchAll(/["']?([A-Za-z]:[\\/][^"'\s;|&]*)/g)].map((m) => m[1])
+  if (absolus.length) return absolus
+  // Pas de chemin absolu : reste ce qui ressemble à un nom de fichier ou de
+  // dossier, qui est alors dans le dossier courant — sauf s'il remonte.
+  return [...commande.matchAll(/(?:^|\s)(?!-)([\w.\-\\/]+)\s*$/g)].map((m) => m[1])
+}
+
+/**
+ * Supprimer dans son propre chantier n'est pas un drame : un dossier `dist`,
+ * un fichier temporaire. Faire confirmer chaque nettoyage rendait Iris
+ * pénible au quotidien, et à force on dit oui sans écouter — ce qui vide la
+ * confirmation de son sens.
+ */
+function dansSonChantier(commande, cwd) {
+  const cibles = ciblesDe(commande)
+  if (!cibles.length) return false
+  const temp = process.env.TEMP || process.env.TMP || ''
+  return cibles.every((cible) => {
+    if (/\.\./.test(cible)) return false
+    const absolu = /^[A-Za-z]:[\\/]/.test(cible) ? cible : path.join(cwd || '', cible)
+    return dedans(absolu, cwd) || (!!temp && dedans(absolu, temp))
+  })
+}
+
 function aConfirmer(outil, entree, cwd) {
   if (outil === 'Bash' || outil === 'PowerShell') {
     const commande = String(entree.command || '')
     const danger = DANGERS.find((d) => d.motif.test(commande))
     if (!danger) return null
+    // Ce qui ne sort pas de son chantier ni du dossier temporaire passe sans
+    // rien demander : le reste (publier, toucher au système, effacer ailleurs)
+    // se confirme toujours.
+    if (
+      (danger.verbe === 'Supprimer' || danger.verbe === 'Vider un fichier') &&
+      dansSonChantier(commande, cwd)
+    ) {
+      return null
+    }
     // L'agent décrit presque toujours sa commande en français : c'est ce
     // qu'Iris dira. À défaut, le verbe et la dernière cible visible.
     const description = String(entree.description || '').trim()

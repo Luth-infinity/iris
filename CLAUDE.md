@@ -337,6 +337,21 @@ Le bouton existe parce qu'on n'a pas toujours envie de dire « oui » à voix
 haute, et parce qu'une autorisation mérite un geste. Les actions irréversibles
 restent soumises au garde, même une fois l'accès donné.
 
+**Autoriser en plein travail relance la demande** : le processus déjà lancé
+garde les droits qu'il avait au départ, donc `accorderTout()` abandonne le
+tour et repose la même question. Sans ça, on autorisait et « ça ne marchait
+toujours pas ».
+
+**La confirmation s'affiche de nouveau** : depuis que la barre attend un objet
+`{ texte, genre }`, `demanderConfirmation` envoyait encore une chaîne — on
+attendait une réponse devant un écran muet. Les deux questions ont leurs
+boutons (« Vas-y » / « J'autorise », et « Non »).
+
+**Le garde ne demande plus pour un nettoyage** : supprimer dans le dossier de
+travail ou dans le dossier temporaire passe sans rien dire (`dansSonChantier`).
+À force de confirmer des `rm -rf dist`, on dit oui sans écouter, et la
+confirmation ne protège plus rien.
+
 **Elle n'attend plus que l'agent y pense** : `cerveau.ts` repère un refus de
 droits dans les résultats d'outils (`REFUS`) et prévient le main, qui demande
 l'accès une fois par tour. C'était la friction n°1 de l'usage quotidien —

@@ -89,7 +89,7 @@ export default function Overlay(): JSX.Element {
    */
   const [demande, setDemande] = useState<{
     texte: string
-    genre: 'precision' | 'autorisation'
+    genre: 'precision' | 'autorisation' | 'confirmation'
   } | null>(null)
   const [secondes, setSecondes] = useState(0)
   const [niveau, setNiveau] = useState(0)
@@ -643,18 +643,26 @@ export default function Overlay(): JSX.Element {
               <p className="line-clamp-3 text-[15px] leading-relaxed text-shell-foreground">
                 {demande.texte}
               </p>
-              {demande.genre === 'autorisation' ? (
+              {demande.genre === 'autorisation' || demande.genre === 'confirmation' ? (
                 // Deux boutons en plus de la voix : on n'a pas toujours envie
                 // de dire « oui » à voix haute, ni de répéter.
                 <div className="mt-1 flex items-center gap-2">
                   <button
-                    onClick={() => window.api.repondreAutorisation(true)}
+                    onClick={() =>
+                      demande.genre === 'autorisation'
+                        ? window.api.repondreAutorisation(true)
+                        : window.api.repondreConfirmation(true)
+                    }
                     className="rounded-full bg-iris px-3.5 py-1.5 text-[13px] font-medium text-iris-foreground transition hover:opacity-90"
                   >
-                    J’autorise
+                    {demande.genre === 'autorisation' ? 'J’autorise' : 'Vas-y'}
                   </button>
                   <button
-                    onClick={() => window.api.repondreAutorisation(false)}
+                    onClick={() =>
+                      demande.genre === 'autorisation'
+                        ? window.api.repondreAutorisation(false)
+                        : window.api.repondreConfirmation(false)
+                    }
                     className="rounded-full px-3 py-1.5 text-[13px] text-shell-muted transition hover:text-shell-foreground"
                   >
                     Non

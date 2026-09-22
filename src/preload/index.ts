@@ -16,6 +16,9 @@ function recevoir<T>(canal: string, cb: (valeur: T) => void): () => void {
   return () => ipcRenderer.removeListener(canal, handler)
 }
 
+/** Ce qu'Iris demande et pour quoi elle attend : une précision, un droit, un feu vert. */
+export type Demande = { texte: string; genre: 'precision' | 'autorisation' | 'confirmation' }
+
 const api = {
   plateforme: process.platform as NodeJS.Platform,
 
@@ -38,11 +41,12 @@ const api = {
     return () => ipcRenderer.removeListener('demarrer-ecoute', handler)
   },
   /** La question posée par Iris, ou `null` quand elle est tranchée. */
-  surConfirmation: (
-    cb: (demande: { texte: string; genre: 'precision' | 'autorisation' } | null) => void
-  ) => recevoir<{ texte: string; genre: 'precision' | 'autorisation' } | null>('confirmation', cb),
+  surConfirmation: (cb: (demande: Demande | null) => void) =>
+    recevoir<Demande | null>('confirmation', cb),
   /** Le bouton d'autorisation de la barre : oui ou non, sans parler. */
   repondreAutorisation: (oui: boolean): void => ipcRenderer.send('repondre-autorisation', oui),
+  /** Le bouton d'une action à confirmer. */
+  repondreConfirmation: (oui: boolean): void => ipcRenderer.send('repondre-confirmation', oui),
   surArreterEcoute: (cb: () => void) => ecouter('arreter-ecoute', cb),
   /** Coupe la lecture en cours et vide la file. */
   surTaire: (cb: () => void) => ecouter('taire', cb),
