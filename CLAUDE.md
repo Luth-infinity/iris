@@ -47,6 +47,14 @@ morphing CSS : `forme-part` déclenche la sortie, on déplace, `forme` déclench
 l'entrée. `setResizable` encadre le `setBounds` parce que Windows le borne sur
 une fenêtre non redimensionnable.
 
+## Apparaître et disparaître
+
+`hide()` seul faisait « dépop » la barre en pleine phrase. `masquerOverlay()`
+envoie `disparition`, laisse 210 ms à l'animation, puis cache — et ne cache
+rien si un tour a repris entre-temps. `montrerOverlay()` envoie `apparition`,
+qui annule une sortie commencée. Les courbes sont dans `tailwind.config.js`
+(`arrivee` : monte de 14 px en 260 ms ; `retrait` : retombe en 200 ms).
+
 ## L'anneau
 
 `components/anneau.tsx` est la signature visuelle, et la raison pour laquelle
@@ -172,6 +180,19 @@ du moment. À la fin, « 3 tâches terminées ».
 - La consigne est passée **à chaque lancement**, reprise comprise : elle vit
   dans le processus, pas dans la session.
 - Réglages changés : `invalider()` relance la réserve.
+
+## Entendre ce qu'elle dit vraiment
+
+Le texte prononcé n'est pas celui qui s'affiche (`pourLaVoix` passe entre les
+deux) : quand Lucas dit « elle parle mal », la seule preuve utile est la
+phrase envoyée à la synthèse. `Diseur` la consigne (`dit : …`) dans
+`journal.log` — c'est la première chose à lire sur un défaut de voix.
+
+Les phrases sont découpées pour l'oreille : plus de coupure sur les
+deux-points, ni après une abréviation ou une initiale (`ABREGE`). Et la
+lecture décode **la phrase suivante pendant la précédente**
+(`FileLecture.suivante`) : sans ça, un blanc s'entendait entre deux phrases
+d'une même réponse.
 
 ## Sa façon de parler
 

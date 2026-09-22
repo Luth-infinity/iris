@@ -219,6 +219,13 @@ function nettoyer(brut: string, dossierTravail: string): string {
 const MINI = 14
 
 /**
+ * Abréviations et initiales : le point qui les suit n'est pas une fin de
+ * phrase. Couper là donnait « M. » prononcé seul, puis une reprise au milieu
+ * de la phrase — c'est exactement ce qui s'entend comme un bug.
+ */
+const ABREGE = /(?:\b[A-ZÉÈÀ]|\betc|\bex|\bp|\bcf|\bM|\bMme|\bDr|\bSt|\bn°|\bno|\bréf|\bvs|\bmin|\bmax|\benv)$/
+
+/**
  * Découpe un tampon en phrases prononçables et rend ce qui reste en attente.
  * Une phrase trop courte est recollée à la suivante : « Oui. » puis « Je
  * regarde. » synthétisés séparément s'entendent comme un hoquet.
@@ -228,14 +235,19 @@ export function decouper(tampon: string): { phrases: string[]; reste: string } {
   let courant = ''
   let reste = tampon
 
-  const coupure = /[.!?…:]["»)]?\s|\n/
+  // Les deux-points ne coupent plus : « Deux choses : la première… » est une
+  // seule phrase à l'oreille, et la couper y mettait un silence de fin.
+  const coupure = /[.!?…]["»)]?\s|\n/
 
   for (;;) {
     const m = coupure.exec(reste)
     if (!m) break
     const fin = m.index + m[0].length
+    const avant = (courant + reste.slice(0, m.index)).trimEnd()
     courant += reste.slice(0, fin)
     reste = reste.slice(fin)
+    // Une abréviation ou une initiale : on continue la phrase.
+    if (ABREGE.test(avant)) continue
     if (courant.trim().length >= MINI) {
       phrases.push(courant.trim())
       courant = ''
@@ -261,7 +273,9 @@ export class Diseur {
 
   constructor(
     private reglages: Reglages,
-    private sur: (mp3: Buffer) => void
+    private sur: (mp3: Buffer) => void,
+    /** Journal : ce qui est réellement prononcé, phrase par phrase. */
+    private noter: (ligne: string) => void = () => {}
   ) {}
 
   /** Ajoute du texte reçu de l'agent et parle ce qui forme des phrases. */
@@ -309,6 +323,9 @@ export class Diseur {
     // Une seule file : les phrases doivent sortir dans l'ordre où elles ont
     // été écrites, et deux synthèses parallèles reviennent dans le désordre.
     this.enCours++
+    // Le texte prononcé n'est pas celui qui s'affiche : quand elle « parle
+    // mal », c'est ici que ça se voit, pas dans la réponse écrite.
+    this.noter(`dit : ${texte.slice(0, 120)}`)
     this.file = this.file.then(async () => {
       if (!this.vivant) return
       try {

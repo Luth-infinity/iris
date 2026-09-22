@@ -12,6 +12,14 @@
 export class FileLecture {
   private file: string[] = []
   private element: HTMLAudioElement | null = null
+  /**
+   * La phrase suivante, déjà décodée pendant que la précédente se joue.
+   *
+   * Sans elle, chaque phrase attendait sa création et son décodage : un blanc
+   * d'une fraction de seconde entre deux phrases d'une même réponse, qui
+   * s'entend comme un hoquet.
+   */
+  private suivante: { element: HTMLAudioElement; source?: MediaElementAudioSourceNode } | null = null
   private joue = false
   private ctx: AudioContext | null = null
   private _analyseur: AnalyserNode | null = null
@@ -31,6 +39,10 @@ export class FileLecture {
       this.element.pause()
       this.element.src = ''
       this.element = null
+    }
+    if (this.suivante) {
+      this.suivante.element.src = ''
+      this.suivante = null
     }
     this.joue = false
   }
@@ -59,30 +71,55 @@ export class FileLecture {
     return { ctx: this.ctx, analyseur: this._analyseur }
   }
 
+  /**
+   * Prépare un morceau : l'élément, sa place dans la pile audio, et le
+   * décodage lancé d'avance.
+   */
+  private preparer(morceau: string): { element: HTMLAudioElement; source?: MediaElementAudioSourceNode } {
+    // Une URL de données plutôt qu'un Blob : pas d'objet à révoquer, et la
+    // lecture démarre sans passer par le réseau interne.
+    const element = new Audio(`data:audio/mpeg;base64,${morceau}`)
+    element.preload = 'auto'
+    try {
+      const { ctx, analyseur } = this.pile()
+      const source = ctx.createMediaElementSource(element)
+      source.connect(analyseur)
+      element.load()
+      return { element, source }
+    } catch {
+      // Pile audio indisponible : on joue quand même, l'anneau se contentera
+      // de son animation au repos.
+      element.load()
+      return { element }
+    }
+  }
+
   private async suivant(): Promise<void> {
-    const morceau = this.file.shift()
-    if (!morceau) {
+    const prete = this.suivante
+    this.suivante = null
+    const morceau = prete ? null : this.file.shift()
+    if (!prete && !morceau) {
       this.joue = false
       this.surFin()
       return
     }
 
     this.joue = true
-    // Une URL de données plutôt qu'un Blob : pas d'objet à révoquer, et la
-    // lecture démarre sans passer par le réseau interne.
-    const audio = new Audio(`data:audio/mpeg;base64,${morceau}`)
+    const { element: audio } = prete ?? this.preparer(morceau as string)
     this.element = audio
 
     try {
-      const { ctx, analyseur } = this.pile()
+      const { ctx } = this.pile()
       // Le contexte démarre suspendu quand la fenêtre n'a jamais eu le focus,
       // ce qui est le cas de l'overlay : sans ça, aucune phrase ne sortirait.
       if (ctx.state === 'suspended') await ctx.resume()
-      ctx.createMediaElementSource(audio).connect(analyseur)
     } catch {
-      // Pile audio indisponible : on joue quand même, l'anneau se contentera
-      // de son animation au repos.
+      // Rien à faire de plus : la lecture se passera de l'analyseur.
     }
+
+    // Pendant que celle-ci parle, la suivante se décode.
+    const apres = this.file.shift()
+    if (apres) this.suivante = this.preparer(apres)
 
     await new Promise<void>((resolve) => {
       audio.onended = () => resolve()

@@ -96,7 +96,7 @@ module.exports = {
         // Iris apparaît devant soi. L'échelle part d'assez bas pour qu'on la
         // voie arriver, sans le rebond qui ferait gadget.
         arrivee: {
-          from: { opacity: '0', transform: 'scale(0.9)' },
+          from: { opacity: '0', transform: 'translateY(14px) scale(0.94)' },
           to: { opacity: '1', transform: 'none' }
         },
         // Une bulle de tâche glisse depuis la pastille, à droite.
@@ -107,7 +107,7 @@ module.exports = {
         // Elle s'efface avant que la fenêtre change de taille et de place.
         retrait: {
           from: { opacity: '1', transform: 'none' },
-          to: { opacity: '0', transform: 'scale(0.88)' }
+          to: { opacity: '0', transform: 'translateY(10px) scale(0.92)' }
         }
       },
       animation: {
@@ -116,10 +116,11 @@ module.exports = {
         'fade-up': 'fade-up 160ms ease-out',
         respire: 'respire 3.2s ease-in-out infinite',
         tourne: 'tourne 1.1s linear infinite',
-        arrivee: 'arrivee 220ms cubic-bezier(0.2, 0.9, 0.3, 1)',
+        // Assez lente pour se voir, assez courte pour ne pas faire attendre.
+        arrivee: 'arrivee 260ms cubic-bezier(0.16, 1, 0.3, 1)',
         // `both` : la bulle reste invisible pendant son délai de cascade.
         bulle: 'bulle 260ms cubic-bezier(0.2, 0.9, 0.3, 1) both',
-        retrait: 'retrait 150ms ease-in forwards'
+        retrait: 'retrait 200ms cubic-bezier(0.4, 0, 0.9, 0.5) forwards'
       }
     }
   },

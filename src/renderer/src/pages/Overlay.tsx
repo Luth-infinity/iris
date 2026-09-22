@@ -379,6 +379,10 @@ export default function Overlay(): JSX.Element {
         setSortie(false)
       }),
       window.api.surFormePart(() => setSortie(true)),
+      // La fenêtre va se cacher : on s'efface d'abord. À l'inverse, une
+      // apparition annule une sortie commencée.
+      window.api.surDisparition(() => setSortie(true)),
+      window.api.surApparition(() => setSortie(false)),
       window.api.surAnnonce(setAnnonce),
       window.api.surConfirmation(setDemande),
       window.api.surDemarrerEcoute((reglages, mode) => void demarrer(reglages, mode !== 'demande')),

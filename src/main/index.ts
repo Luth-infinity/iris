@@ -690,6 +690,9 @@ function desarmerRetrait(): void {
   retrait = null
 }
 
+/** Le temps que dure la sortie à l'écran, avant que la fenêtre se cache. */
+const DUREE_SORTIE = 210
+
 /** Montre l'overlay sans lui donner le focus, et annule un repli en attente. */
 async function montrerOverlay(): Promise<void> {
   if (replier) {
@@ -697,7 +700,34 @@ async function montrerOverlay(): Promise<void> {
     replier = null
   }
   await overlayPret
+  // Toujours envoyé, même déjà visible : une sortie interrompue laisserait la
+  // barre à demi effacée.
+  overlay?.webContents.send('apparition')
   if (!overlay?.isVisible()) overlay?.showInactive()
+}
+
+/**
+ * Cache l'overlay après l'avoir laissé s'effacer.
+ *
+ * `hide()` seul le faisait disparaître d'un coup, en plein milieu d'une
+ * phrase à l'écran : on joue la sortie, puis on cache. Si quelque chose
+ * reprend pendant ces deux cents millisecondes, on ne cache plus rien.
+ */
+function masquerOverlay(): void {
+  if (!overlay || overlay.isDestroyed() || !overlay.isVisible()) {
+    overlay?.hide()
+    return
+  }
+  overlay.webContents.send('disparition')
+  setTimeout(() => {
+    if (!overlay || overlay.isDestroyed()) return
+    // Rappelée entre-temps : sa place est à l'écran, pas cachée.
+    if (occupee()) {
+      overlay.webContents.send('apparition')
+      return
+    }
+    overlay.hide()
+  }, DUREE_SORTIE)
 }
 
 /**
@@ -749,10 +779,10 @@ function replierOverlay(delai: number): void {
     // L'état d'erreur se replie comme le repos : il ne l'a pas fait pendant
     // longtemps, et la barre restait collée à l'écran après un échec.
     if (etat === 'erreur') poserEtat('repos')
-    overlay?.hide()
+    masquerOverlay()
     // Masquée, elle reprend sa forme d'échange : le prochain raccourci doit
     // ouvrir le micro en face de soi, pas sur le bord de l'écran.
-    void poserForme('barre')
+    setTimeout(() => void poserForme('barre'), DUREE_SORTIE)
   }, delai)
 }
 
@@ -793,8 +823,8 @@ function congedier(): void {
     replier = null
   }
   poserEtat('repos')
-  overlay?.hide()
-  void poserForme('barre')
+  masquerOverlay()
+  setTimeout(() => void poserForme('barre'), DUREE_SORTIE)
 }
 
 /**
@@ -863,7 +893,9 @@ async function poser(question: string): Promise<void> {
   )
 
   diseur = reglages.parler
-    ? new Diseur(reglages, (mp3) => {
+    ? new Diseur(
+        reglages,
+        (mp3) => {
         // La voix est jouée par l'overlay : le main n'a pas de sortie audio,
         // et une fenêtre sait interrompre une lecture en cours.
         if (etat !== 'erreur') poserEtat('parole')
@@ -874,8 +906,10 @@ async function poser(question: string): Promise<void> {
         // soit vidée et que la barre se soit repliée : Iris parlerait alors
         // sans rien à l'écran.
         void montrerOverlay()
-        overlay?.webContents.send('audio', mp3.toString('base64'))
-      })
+          overlay?.webContents.send('audio', mp3.toString('base64'))
+        },
+        noter
+      )
     : null
 
   const surEvenement = (e: EvenementTour): void => {

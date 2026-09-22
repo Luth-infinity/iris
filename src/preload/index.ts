@@ -48,6 +48,9 @@ const api = {
   surTaire: (cb: () => void) => ecouter('taire', cb),
   /** Plus aucune phrase ne viendra : si la lecture dort déjà, la réponse est finie. */
   surSynthesesFinies: (cb: () => void) => ecouter('syntheses-finies', cb),
+  /** Elle arrive à l'écran, ou elle s'en va : de quoi jouer l'animation. */
+  surApparition: (cb: () => void) => ecouter('apparition', cb),
+  surDisparition: (cb: () => void) => ecouter('disparition', cb),
   /** Phrase affichée au repos, au démarrage : comment appeler Iris. */
   surAnnonce: (cb: (texte: string) => void) => recevoir<string>('annonce', cb),
   /** Le carillon du lancement, en base64 : hors de la file de la voix. */
