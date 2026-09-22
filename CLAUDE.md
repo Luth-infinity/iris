@@ -375,6 +375,12 @@ ne redimensionne rien.
 Dépôt public `Luth-infinity/iris`, pour **Windows et macOS**. Numérotation en
 `0.x`, ne jamais passer `1.0.0` (`electron-updater` ne redescend pas).
 
+Le 22/09/2026, une `1.0.1` est partie par erreur : elle a été **masquée en
+pré-version** (pas supprimée — les liens de ceux qui l'auraient prise restent
+valides), le site et l'updater ignorent les pré-versions, et la `0.3.0` a été
+publiée à sa place. Un poste déjà passé en 1.0.1 ne redescend pas tout seul :
+il faut réinstaller. C'est la seule façon de revenir en arrière.
+
 Les binaires ne se construisent pas ici : `.github/workflows/release.yml`
 (repris de VoiceType) construit l'installeur Windows et les deux `.dmg` (Intel
 et Apple Silicon) à chaque tag `vX.Y.Z`, les joint à une release brouillon,
