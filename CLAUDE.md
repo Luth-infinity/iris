@@ -97,6 +97,19 @@ des enregistrements (`?source=iris-henri`, `iris-denise`, `phrase-henri`,
   dans les enceintes prononce son nom, et elle se rouvrirait le micro au milieu
   de sa phrase.
 
+## Quand le micro change
+
+La veille tient **son propre flux**, ouvert une fois pour toutes : changer de
+micro la laissait sur l'ancien, muette, sans la moindre erreur — Iris
+n'entendait plus son nom du tout. Trois garde-fous depuis le 22/09 :
+
+- `Veille.changerMicro()` rouvre le flux sans recharger le modèle (quarante
+  mégaoctets à déballer), sur `devicechange` et sur un changement de micro
+  dans les paramètres ;
+- `muetDepuis()` : plus rien n'entre depuis une minute au repos, on rouvre ;
+- un micro enregistré introuvable est **oublié** (`micro-perdu`), au lieu
+  d'être réessayé en silence à chaque écoute.
+
 ## Finir une demande sans clavier
 
 Appelée à la voix, Iris doit se refermer à la voix. Trois sorties, toutes

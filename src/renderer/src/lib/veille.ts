@@ -60,6 +60,10 @@ export class Veille {
   private noeud: ScriptProcessorNode | null = null
   private source: MediaStreamAudioSourceNode | null = null
   private ecoute = true
+  /** Dernier instant où du son est entré : de quoi voir un micro devenu muet. */
+  private dernierSon = 0
+  /** Le micro ouvert en ce moment, pour ne pas le rouvrir pour rien. */
+  private microOuvert = ''
   private dernierMot = 0
   private traine = 0
   private mode: Mode = 'appel'
@@ -134,6 +138,8 @@ export class Veille {
       veille.journal?.('micro choisi introuvable, micro par défaut utilisé')
     )
     veille.flux = flux
+    veille.microOuvert = peripherique
+    veille.dernierSon = Date.now()
 
     const ctx = new AudioContext()
     veille.ctx = ctx
@@ -167,6 +173,39 @@ export class Veille {
     noeud.connect(muet).connect(ctx.destination)
 
     return veille
+  }
+
+  /**
+   * Rouvre le micro sans tout recharger.
+   *
+   * Changer de micro laissait la veille sur l'ancien flux, muet : Iris
+   * n'entendait plus son nom du tout, et rien ne le disait. Le modèle, lui,
+   * reste en place — c'est quarante mégaoctets à déballer.
+   */
+  async changerMicro(peripherique: string): Promise<void> {
+    if (!this.ctx || !this.noeud) return
+    this.source?.disconnect()
+    this.flux?.getTracks().forEach((t) => t.stop())
+    const flux = await ouvrirFlux(peripherique, { echoCancellation: true }, () =>
+      this.journal?.('micro choisi introuvable, micro par défaut utilisé')
+    )
+    this.flux = flux
+    this.microOuvert = peripherique
+    const source = this.ctx.createMediaStreamSource(flux)
+    this.source = source
+    source.connect(this.noeud)
+    this.dernierSon = Date.now()
+    this.journal?.('veille : micro rouvert')
+  }
+
+  /** Depuis combien de temps plus rien n'entre, en millisecondes. */
+  muetDepuis(): number {
+    return this.dernierSon ? Date.now() - this.dernierSon : 0
+  }
+
+  /** L'identifiant du micro actuellement ouvert. */
+  get micro(): string {
+    return this.microOuvert
   }
 
   /** Iris parle ou travaille : on arrête d'écouter son propre nom. */
@@ -215,6 +254,14 @@ export class Veille {
   }
 
   private traiter(echantillons: Float32Array): void {
+    // L'heure du dernier son, même faible : un micro débranché ne renvoie
+    // plus que des zéros, et c'est le seul signe qu'on ait.
+    for (let i = 0; i < echantillons.length; i += 32) {
+      if (Math.abs(echantillons[i]) > 0.002) {
+        this.dernierSon = Date.now()
+        break
+      }
+    }
     if (!this.ecoute || !this.reconnaisseur || !this.ctx) return
 
     let somme = 0

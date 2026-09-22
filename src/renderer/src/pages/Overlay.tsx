@@ -479,7 +479,14 @@ export default function Overlay(): JSX.Element {
     }
 
     const appliquer = (r: Reglages): void => {
+      const avant = reglagesRef.current?.peripherique
       reglagesRef.current = r
+      // Micro changé dans les paramètres : la veille tient son propre flux, et
+      // serait restée sur l'ancien.
+      if (veilleRef.current && r.veille && avant !== undefined && avant !== r.peripherique) {
+        window.api.noter('veille : micro changé dans les paramètres')
+        void veilleRef.current.changerMicro(r.peripherique)
+      }
       if (r.veille) void ouvrir()
       else if (veilleRef.current) {
         veilleRef.current.arreter()
@@ -493,6 +500,37 @@ export default function Overlay(): JSX.Element {
     // longtemps que l'application, et le démontage n'arrive qu'en
     // développement, où il relancerait un déballage de quarante mégaoctets.
     return window.api.surReglages(appliquer)
+  }, [])
+
+  /**
+   * Un micro branché, débranché, ou devenu muet.
+   *
+   * Le flux de la veille reste ouvert sur un périphérique disparu sans lever
+   * la moindre erreur : Iris n'entendait plus son nom, et rien ne le disait.
+   * On rouvre donc sur un changement de périphérique, et par sécurité quand
+   * plus rien n'entre depuis une minute alors qu'elle est censée écouter.
+   */
+  useEffect(() => {
+    const rouvrir = (raison: string): void => {
+      const veille = veilleRef.current
+      if (!veille) return
+      window.api.noter(`veille : ${raison}, réouverture du micro`)
+      void veille.changerMicro(reglagesRef.current?.peripherique ?? '')
+    }
+
+    const surChangement = (): void => rouvrir('périphériques modifiés')
+    navigator.mediaDevices.addEventListener('devicechange', surChangement)
+
+    const garde = window.setInterval(() => {
+      const veille = veilleRef.current
+      if (!veille || etatRef.current !== 'repos') return
+      if (veille.muetDepuis() > 60000) rouvrir('plus rien n’entre depuis une minute')
+    }, 20000)
+
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', surChangement)
+      window.clearInterval(garde)
+    }
   }, [])
 
   /**
