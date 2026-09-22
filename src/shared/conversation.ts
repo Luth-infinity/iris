@@ -68,6 +68,24 @@ export type EvenementTour =
   | { type: 'fin'; id: number; texte: string; erreur?: string }
 
 /**
+ * Ce qu'Iris sait déjà.
+ *
+ * `contenu` est le mémo court, relu à chaque conversation. Les `fiches` sont
+ * le reste : une par sujet, listée ici, lue seulement quand le sujet revient —
+ * tout charger à chaque question ferait grossir la consigne sans fin.
+ */
+export type Memoire = {
+  /** Le mémo court (`memoire.md`), ou '' si la mémoire est indisponible. */
+  chemin: string
+  contenu: string
+  /** Le dossier des fiches, et leur sommaire : nom de fichier, première ligne. */
+  dossierFiches: string
+  fiches: { nom: string; resume: string }[]
+  /** Le journal du mois en cours : ce qu'elle a fait, daté. */
+  journal: string
+}
+
+/**
  * Consigne de départ de l'agent.
  *
  * Elle tient en peu de lignes parce qu'elle est lue à voix haute : c'est la
@@ -78,7 +96,7 @@ export type EvenementTour =
 export function consigne(
   dossier: string,
   usuels: { nom: string; chemin: string }[],
-  memoire: { chemin: string; contenu: string },
+  memoire: Memoire,
   qui: { prenom: string; mac: boolean }
 ): string {
   // Sans prénom réglé, on parle de lui sans le nommer plutôt que de lui en
@@ -139,12 +157,19 @@ export function consigne(
     'Ta mémoire :',
     ...(memoire.chemin
       ? [
-          `- Ta mémoire est le fichier ${memoire.chemin}. Tu la relis ici à chaque nouvelle conversation.`,
-          `- Quand tu apprends quelque chose de durable sur ${Lucas} ou sur cette machine (comment ouvrir une application, une préférence, un profil, une astuce qui a marché après un échec), ajoute une ligne courte à la bonne section de ce fichier, sans le dire à voix haute. Corrige une ligne devenue fausse plutôt que d'en ajouter une contradictoire.`,
-          "- N'y écris jamais de mot de passe, de clé ni de donnée personnelle d'un tiers.",
+          `- Ton mémo est le fichier ${memoire.chemin}, relu à chaque nouvelle conversation. Il ne porte que des faits courts et durables : une préférence, une habitude, comment ouvrir une application, une astuce qui a marché après un échec. Ajoute-lui une ligne quand tu apprends l'un de ces faits, sans le dire à voix haute, et corrige une ligne devenue fausse plutôt que d'en ajouter une contradictoire.`,
+          `- Tes fiches sont dans ${memoire.dossierFiches}, une par sujet : un projet, une application, une personne, une démarche. Une fiche commence par un titre et une ligne qui la résume, puis ce que tu as appris et fait sur ce sujet.`,
+          `- Avant de travailler sur un sujet qui a sa fiche, relis-la. Après un travail qui compte, complète-la, ou crée-la si elle manque : nom de fichier en minuscules avec des tirets, court et parlant.`,
+          `- Ton journal est ${memoire.journal}. Après chaque action qui a changé quelque chose sur la machine, ajoute-lui une ligne : la date, ce que tu as fait, et où. C'est ce qui te permet de répondre à « qu'est-ce que tu as fait hier ? ».`,
+          "- N'écris jamais de mot de passe, de clé ni de donnée personnelle d'un tiers dans ces fichiers.",
           '',
-          'Contenu actuel :',
-          memoire.contenu.trim() || '(vide)'
+          'Ton mémo :',
+          memoire.contenu.trim() || '(vide)',
+          '',
+          'Tes fiches :',
+          ...(memoire.fiches.length
+            ? memoire.fiches.map((f) => `- ${f.nom} — ${f.resume}`)
+            : ['(aucune pour le moment)'])
         ]
       : ['- (indisponible)'])
   ].join('\n')

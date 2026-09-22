@@ -18,10 +18,11 @@ import fs from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
 import { is } from '@electron-toolkit/utils'
-import { REGLAGES_DEFAUT, normalizeReglages, type Reglages } from '../shared/reglages'
+import { FOURNISSEURS, REGLAGES_DEFAUT, normalizeReglages, type Reglages } from '../shared/reglages'
 import {
   AVANT_RETRAIT,
   type Etat,
+  type Memoire,
   type EvenementTour,
   type Forme,
   type ModeEcoute,
@@ -125,6 +126,7 @@ function enregistrerReglages(r: Reglages): void {
 let overlay: BrowserWindow | null = null
 let conversation: BrowserWindow | null = null
 let parametres: BrowserWindow | null = null
+let bienvenue: BrowserWindow | null = null
 let tray: Tray | null = null
 let reglages = chargerReglages()
 let etat: Etat = 'repos'
@@ -239,7 +241,10 @@ function poserEtat(suivant: Etat): void {
 
 // ─── Fenêtres ────────────────────────────────────────────────────────────────
 
-function chargerPage(win: BrowserWindow, page: 'overlay' | 'conversation' | 'parametres'): void {
+function chargerPage(
+  win: BrowserWindow,
+  page: 'overlay' | 'conversation' | 'parametres' | 'bienvenue'
+): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?page=${page}`)
   } else {
@@ -395,6 +400,52 @@ function creerConversation(): void {
   })
 }
 
+/**
+ * L'écran de bienvenue.
+ *
+ * Au premier lancement, tout ce qu'il faut à Iris manque encore : un prénom,
+ * Claude Code connecté, une clé de transcription. Les paramètres les
+ * demandaient sous forme de formulaire, ce qui suppose de savoir déjà ce que
+ * chaque ligne veut dire. Ici, elle pose une chose à la fois et la vérifie.
+ */
+function creerBienvenue(): void {
+  bienvenue = new BrowserWindow({
+    width: 620,
+    height: 760,
+    minWidth: 520,
+    minHeight: 600,
+    show: false,
+    icon: iconApp,
+    title: 'Bienvenue',
+    autoHideMenuBar: true,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1c1f' : '#fbfbfc',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      sandbox: false
+    }
+  })
+
+  chargerPage(bienvenue, 'bienvenue')
+
+  bienvenue.on('close', (e) => {
+    if (quitte) return
+    e.preventDefault()
+    bienvenue?.hide()
+  })
+
+  // Les liens (compte Groq, documentation) partent dans le vrai navigateur.
+  bienvenue.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+}
+
+function ouvrirBienvenue(): void {
+  bienvenue?.show()
+  bienvenue?.focus()
+}
+
 function creerParametres(): void {
   parametres = new BrowserWindow({
     width: 560,
@@ -536,6 +587,7 @@ function menuTray(): Menu {
     // Rangé ici et nulle part ailleurs : c'est un journal, pas une façon de
     // se servir d'Iris.
     { label: 'Historique', click: ouvrirConversation },
+    { label: 'Guide de démarrage', click: ouvrirBienvenue },
     { label: 'Paramètres', click: ouvrirParametres },
     { label: 'Quitter', click: quitter }
   ])
@@ -1005,17 +1057,61 @@ function quitter(): void {
 // ─── Mémoire d'Iris ──────────────────────────────────────────────────────────
 
 /**
- * Ce qu'Iris apprend sur Lucas et sur ce PC, dans un fichier à elle.
+ * Ce qu'Iris apprend, dans des fichiers à elle.
  *
- * Elle le relit au début de chaque conversation (il entre dans sa consigne) et
- * l'enrichit elle-même. Il est séparé de la mémoire que Claude Code tient pour
- * le dossier des projets : celle-là sert au développement, celle-ci à la vie
- * de tous les jours (quel navigateur, quel profil, quelle habitude).
+ * Trois choses distinctes, parce qu'elles ne se relisent pas au même moment :
+ * un mémo court, qui entre en entier dans chaque consigne ; des fiches, une
+ * par sujet, dont seul le sommaire est donné et qu'elle ouvre quand le sujet
+ * revient ; et un journal mensuel de ce qu'elle a fait, pour répondre à
+ * « qu'est-ce que tu as fait hier ? ». Tout charger à chaque question ferait
+ * grossir la consigne sans fin.
+ *
+ * Le tout est séparé de la mémoire que Claude Code tient pour le dossier des
+ * projets : celle-là sert au développement, celle-ci à la vie de tous les
+ * jours (quel navigateur, quelle habitude, ce qu'on a fait ensemble).
  */
 const dossierMemoire = join(app.getPath('userData'), 'memoire')
 const cheminMemoire = join(dossierMemoire, 'memoire.md')
+const dossierFiches = join(dossierMemoire, 'fiches')
+const dossierJournalMemoire = join(dossierMemoire, 'journal')
 /** Au-delà, la consigne s'alourdit à chaque question pour peu de profit. */
 const TAILLE_MEMOIRE = 8000
+/** Le sommaire des fiches passe dans chaque consigne : il doit rester court. */
+const FICHES_MAX = 60
+
+/** Le journal du mois : un fichier par mois, pour qu'aucun ne devienne illisible. */
+function journalDuMois(): string {
+  const maintenant = new Date()
+  const mois = `${maintenant.getFullYear()}-${String(maintenant.getMonth() + 1).padStart(2, '0')}`
+  return join(dossierJournalMemoire, `${mois}.md`)
+}
+
+/**
+ * Le sommaire des fiches : leur nom, et la première ligne de texte de
+ * chacune. C'est cette ligne qui dit à Iris si la fiche vaut le détour, donc
+ * la consigne lui demande d'en écrire une en tête.
+ */
+function sommaireFiches(): { nom: string; resume: string }[] {
+  try {
+    return fs
+      .readdirSync(dossierFiches)
+      .filter((f) => f.toLowerCase().endsWith('.md'))
+      .sort()
+      .slice(0, FICHES_MAX)
+      .map((nom) => {
+        let resume = ''
+        try {
+          const lignes = fs.readFileSync(join(dossierFiches, nom), 'utf-8').split(/\r?\n/)
+          resume = lignes.find((l) => l.trim() && !l.startsWith('#'))?.trim() ?? ''
+        } catch {
+          // Fiche illisible : elle reste listée, Iris l'ouvrira si besoin.
+        }
+        return { nom, resume: resume.slice(0, 120) }
+      })
+  } catch {
+    return []
+  }
+}
 
 /** Le nom de l'application qui ouvre les liens, lu dans le registre. */
 function navigateurParDefaut(): string {
@@ -1050,8 +1146,11 @@ function navigateurParDefaut(): string {
  * défaut (Arc), qui demandait un profil, alors que Lucas vit dans Firefox.
  */
 function initialiserMemoire(): void {
+  // Les dossiers d'abord : ils manquent aussi aux mémoires créées avant les
+  // fiches, et l'agent n'a pas à les créer lui-même.
+  fs.mkdirSync(dossierFiches, { recursive: true })
+  fs.mkdirSync(dossierJournalMemoire, { recursive: true })
   if (fs.existsSync(cheminMemoire)) return
-  fs.mkdirSync(dossierMemoire, { recursive: true })
 
   const mac = process.platform === 'darwin'
   const firefox = (
@@ -1096,11 +1195,17 @@ function initialiserMemoire(): void {
   fs.writeFileSync(cheminMemoire, lignes.join('\n'), 'utf-8')
 }
 
-function lireMemoire(): { chemin: string; contenu: string } {
+function lireMemoire(): Memoire {
   try {
-    return { chemin: cheminMemoire, contenu: fs.readFileSync(cheminMemoire, 'utf-8').slice(0, TAILLE_MEMOIRE) }
+    return {
+      chemin: cheminMemoire,
+      contenu: fs.readFileSync(cheminMemoire, 'utf-8').slice(0, TAILLE_MEMOIRE),
+      dossierFiches,
+      fiches: sommaireFiches(),
+      journal: journalDuMois()
+    }
   } catch {
-    return { chemin: '', contenu: '' }
+    return { chemin: '', contenu: '', dossierFiches: '', fiches: [], journal: '' }
   }
 }
 
@@ -1147,6 +1252,7 @@ app.whenReady().then(() => {
   creerOverlay()
   creerConversation()
   creerParametres()
+  creerBienvenue()
   creerTray()
   updates.onChange((maj) => {
     rafraichirTray()
@@ -1155,7 +1261,15 @@ app.whenReady().then(() => {
   updates.surveiller()
   void demarrerCerveau()
 
-  if (!enregistrerRaccourci(reglages.raccourci)) {
+  // Le raccourci d'abord, dans tous les cas : le guide peut être refermé en
+  // cours de route, et Iris doit répondre quand même.
+  const raccourciPris = !enregistrerRaccourci(reglages.raccourci)
+
+  if (premierLancement) {
+    // Rien n'est réglé : une phrase à l'écran n'apprendrait pas à s'en servir,
+    // et le premier « Iris » échouerait faute de cerveau et de clé.
+    ouvrirBienvenue()
+  } else if (raccourciPris) {
     // Raccourci pris par une autre application : sans fenêtre ouverte
     // personne ne le saurait.
     ouvrirParametres()
@@ -1332,6 +1446,46 @@ app.whenReady().then(() => {
     noter(`connexion du compte ${nom}`)
     cerveau.connecterCompte(nom, reglages)
   })
+  // ─── Écran de bienvenue ───────────────────────────────────────────────────
+
+  ipcMain.handle('etat-claude', () => cerveau.etatClaude())
+  ipcMain.on('preparer-claude', (_, quoi: unknown) => {
+    if (quoi !== 'installer' && quoi !== 'connexion') return
+    noter(`Claude Code : ${quoi}`)
+    cerveau.preparerClaude(quoi)
+  })
+
+  /**
+   * La clé est-elle bonne ? On interroge la liste des modèles du fournisseur :
+   * c'est la requête la moins chère qui prouve la même chose qu'une
+   * transcription, et elle ne demande pas de micro.
+   */
+  ipcMain.handle('tester-cle', async (_, recu: unknown) => {
+    const r = normalizeReglages(recu)
+    if (!r.cleApi) return { ok: false, erreur: 'Aucune clé.' }
+    const url = FOURNISSEURS[r.fournisseur].endpoint.replace(/\/audio\/transcriptions$/, '/models')
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${r.cleApi}` } })
+      if (res.ok) return { ok: true }
+      if (res.status === 401) return { ok: false, erreur: 'Cette clé est refusée.' }
+      return { ok: false, erreur: `Le service a répondu ${res.status}.` }
+    } catch (err) {
+      return { ok: false, erreur: `Service injoignable : ${String(err).slice(0, 80)}` }
+    }
+  })
+
+  /** Fin du guide : les réglages sont déjà enregistrés, Iris se présente. */
+  ipcMain.on('terminer-bienvenue', () => {
+    bienvenue?.hide()
+    if (!globalShortcut.isRegistered(reglages.raccourci)) enregistrerRaccourci(reglages.raccourci)
+    void annoncer()
+  })
+
+  ipcMain.on('ouvrir-lien', (_, url: unknown) => {
+    // Seules les adresses du guide, et seulement en clair sur le réseau.
+    if (typeof url === 'string' && url.startsWith('https://')) void shell.openExternal(url)
+  })
+
   ipcMain.on('ouvrir-parametres', ouvrirParametres)
   ipcMain.on('ouvrir-conversation', ouvrirConversation)
 })

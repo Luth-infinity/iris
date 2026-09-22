@@ -200,11 +200,18 @@ niveaux :
 
 ## Mémoire d'Iris
 
-`%APPDATA%/iris/memoire/memoire.md`, créée au premier lancement avec ce qu'on
-sait de la machine (Firefox, et le navigateur par défaut, qui chez Lucas est
-**Arc** : ouvrir un lien « normalement » lançait Arc, qui demande un profil).
-Elle entre dans la consigne, et Iris la complète elle-même. Distincte de la
-mémoire de développement du dossier `Apps`, qu'elle charge aussi.
+Dans `%APPDATA%/iris/memoire/`, trois choses qui ne se relisent pas au même
+moment — tout charger à chaque question ferait grossir la consigne sans fin :
+
+| | |
+|---|---|
+| `memoire.md` | Le mémo : des faits courts et durables, donné en entier dans chaque consigne. Créé au premier lancement avec ce qu'on sait de la machine (Firefox, et le navigateur par défaut, qui chez Lucas est **Arc** : ouvrir un lien « normalement » lançait Arc, qui demande un profil). |
+| `fiches/*.md` | Une fiche par sujet. Seul le **sommaire** entre dans la consigne : nom du fichier et première ligne de texte — d'où la consigne d'écrire une ligne de résumé en tête. Iris ouvre la fiche quand le sujet revient, et la complète après un travail. |
+| `journal/AAAA-MM.md` | Ce qu'elle a fait, daté, un fichier par mois. C'est ce qui permet de répondre à « qu'est-ce que tu as fait hier ? ». |
+
+Les deux dossiers sont créés par Iris au démarrage (`initialiserMemoire`), pas
+par l'agent. Le tout est distinct de la mémoire de développement du dossier
+`Apps`, qu'elle charge aussi.
 
 ## Comptes (Figma)
 
@@ -395,6 +402,26 @@ se cachent au lieu de se fermer retiennent la sortie.
   classique, sans quoi les pastilles de fermeture disparaissent.
 - `LSUIElement` : pas d'icône dans le Dock, Iris vit dans la barre des menus.
 - L'app n'est pas signée : première ouverture par clic droit, puis Ouvrir.
+
+## Le guide de démarrage
+
+`pages/Bienvenue.tsx`, une quatrième fenêtre, ouverte au premier lancement à la
+place de l'annonce et par le menu de l'icône. Cinq étapes : prénom, Claude Code,
+clé de transcription, voix et micro, puis ce qu'on peut lui dire.
+
+Le principe : **rien n'est cru sur parole**. `etatClaude()` lance
+`claude --version` puis `claude auth status` et affiche ce qu'il manque ;
+`preparerClaude()` ouvre un terminal (`assets/outils/claude-setup*`) qui
+installe Claude Code avec la commande officielle d'Anthropic, puis enchaîne sur
+`claude auth login` — les deux exigent un vrai terminal, comme la connexion des
+comptes. La clé est essayée sur la liste des modèles du fournisseur (la requête
+la moins chère qui prouve la même chose qu'une transcription), la voix est
+jouée, le micro fait bouger une barre.
+
+Le raccourci global est enregistré **avant** d'ouvrir le guide : il peut être
+refermé en cours de route, et Iris doit répondre quand même. La dernière étape
+n'installe rien, elle apprend quoi dire : c'est la question que tout le monde
+pose devant un micro.
 
 ## Le prénom
 

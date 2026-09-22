@@ -3,7 +3,13 @@ import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_proc
 import { existsSync } from 'fs'
 import { delimiter, dirname, join } from 'path'
 import { homedir } from 'os'
-import { consigne, type EvenementTour, type Outil, type Tache } from '@shared/conversation'
+import {
+  consigne,
+  type EvenementTour,
+  type Memoire,
+  type Outil,
+  type Tache
+} from '@shared/conversation'
 import { PERMISSIONS, type Reglages } from '@shared/reglages'
 import type { Modele } from './routeur'
 
@@ -228,8 +234,14 @@ export function brancher(options: {
 }
 
 /** Chemin et contenu de la mémoire d'Iris, relus à chaque lancement. */
-let memoire: () => { chemin: string; contenu: string } = () => ({ chemin: '', contenu: '' })
-export function brancherMemoire(lire: () => { chemin: string; contenu: string }): void {
+let memoire: () => Memoire = () => ({
+  chemin: '',
+  contenu: '',
+  dossierFiches: '',
+  fiches: [],
+  journal: ''
+})
+export function brancherMemoire(lire: () => Memoire): void {
   memoire = lire
 }
 
@@ -659,6 +671,63 @@ export function fermerTout(): void {
 
 export function enCours(): boolean {
   return !!courante?.tour
+}
+
+// ─── Diagnostic ──────────────────────────────────────────────────────────────
+
+/** Où en est Claude Code sur cette machine. */
+export type EtatClaude = {
+  installe: boolean
+  version: string
+  /** `null` : la question n'a pas pu être posée (commande absente, trop lente). */
+  connecte: boolean | null
+}
+
+function lancerCourt(args: string[], delai = 20000): Promise<string | null> {
+  const { commande, shell } = commandeClaude()
+  return new Promise((resolve) => {
+    execFile(
+      commande,
+      args,
+      { shell, windowsHide: true, timeout: delai },
+      (err, sortie, erreur) => resolve(err && !sortie ? (erreur ? String(erreur) : null) : String(sortie))
+    )
+  })
+}
+
+/**
+ * Claude Code est-il installé, et connecté ?
+ *
+ * C'est la première question de l'écran de bienvenue : sans lui, Iris n'a pas
+ * de cerveau, et le message d'erreur au premier « Iris » n'expliquerait rien.
+ */
+export async function etatClaude(): Promise<EtatClaude> {
+  const version = (await lancerCourt(['--version'])) ?? ''
+  const numero = /(\d+\.\d+\.\d+)/.exec(version)?.[1] ?? ''
+  if (!numero) return { installe: false, version: '', connecte: null }
+
+  const statut = (await lancerCourt(['auth', 'status'])) ?? ''
+  const connecte = /"loggedIn"\s*:\s*true/.test(statut)
+    ? true
+    : /"loggedIn"\s*:\s*false|not logged in|\/login/i.test(statut)
+      ? false
+      : null
+  return { installe: true, version: numero, connecte }
+}
+
+/**
+ * Ouvre une fenêtre de terminal qui installe Claude Code, ou l'y connecte.
+ *
+ * L'un comme l'autre réclament un vrai terminal : l'installation affiche sa
+ * progression, la connexion attend un retour du navigateur. On réutilise donc
+ * le mécanisme des comptes (`assets/outils`).
+ */
+export function preparerClaude(quoi: 'installer' | 'connexion'): void {
+  const windows = process.platform === 'win32'
+  const [commande, args] = windows
+    ? ['cmd.exe', ['/c', join(dossierOutils, 'claude-setup.cmd'), quoi]]
+    : [join(dossierOutils, 'claude-setup'), [quoi]]
+  spawn(commande, args, { cwd: homedir(), windowsHide: true, detached: true, stdio: 'ignore' }).unref()
 }
 
 // ─── Comptes ─────────────────────────────────────────────────────────────────

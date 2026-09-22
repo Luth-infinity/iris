@@ -98,6 +98,20 @@ const api = {
   /** Synthétise une phrase d'exemple avec les réglages en cours d'édition. */
   testerVoix: (r: Reglages): Promise<string> => ipcRenderer.invoke('tester-voix', r),
   choisirDossier: (): Promise<string | null> => ipcRenderer.invoke('choisir-dossier'),
+
+  // ─── Écran de bienvenue ───────────────────────────────────────────────────
+
+  /** Claude Code est-il installé sur cette machine, et connecté ? */
+  etatClaude: (): Promise<{ installe: boolean; version: string; connecte: boolean | null }> =>
+    ipcRenderer.invoke('etat-claude'),
+  /** Ouvre un terminal qui installe Claude Code, ou l'y connecte. */
+  preparerClaude: (quoi: 'installer' | 'connexion'): void =>
+    ipcRenderer.send('preparer-claude', quoi),
+  /** Vérifie la clé de transcription auprès du fournisseur. */
+  testerCle: (r: Reglages): Promise<{ ok: boolean; erreur?: string }> =>
+    ipcRenderer.invoke('tester-cle', r),
+  terminerBienvenue: (): void => ipcRenderer.send('terminer-bienvenue'),
+  ouvrirLien: (url: string): void => ipcRenderer.send('ouvrir-lien', url),
   /** Les comptes Figma du Claude Code d'Iris, et s'ils sont connectés. */
   comptes: (): Promise<{ nom: string; connecte: boolean }[]> => ipcRenderer.invoke('comptes'),
   /** Ouvre la connexion d'un compte : terminal, puis Firefox en navigation privée. */

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Installe Claude Code, ou connecte celui qui est déjà là, dans une fenêtre du
+# Terminal : l'installateur officiel affiche sa progression, et la connexion
+# ouvre le navigateur puis attend la réponse.
+quoi="$1"
+if [ "$quoi" != "installer" ] && [ "$quoi" != "connexion" ]; then
+  echo "Usage : claude-setup installer|connexion"
+  exit 1
+fi
+
+ici="$(cd "$(dirname "$0")" && pwd)"
+osascript -e "tell application \"Terminal\" to do script \"sh '$ici/claude-setup.sh' '$quoi'\"" \
+  -e 'tell application "Terminal" to activate' >/dev/null
+echo "Fenêtre ouverte ($quoi)."
