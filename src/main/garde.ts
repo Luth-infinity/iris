@@ -62,13 +62,16 @@ export function demarrerGarde(
     confirmer: (action: string) => Promise<boolean>
     /** Il manque une information à l'agent : Iris pose la question et écoute. */
     demander: (question: string) => Promise<string>
+    /** L'agent est bloqué faute de droits : Iris demande l'autorisation. */
+    autoriser: (raison: string) => Promise<boolean>
   }
 ): Promise<Garde | null> {
   const node = trouverNode()
   const jeton = randomBytes(24).toString('hex')
 
   const serveur = http.createServer((req, res) => {
-    const route = req.url === '/confirmer' || req.url === '/demander' ? req.url : ''
+    const routes = ['/confirmer', '/demander', '/autoriser']
+    const route = routes.find((r) => r === req.url) ?? ''
     if (req.method !== 'POST' || !route || req.headers['x-iris-jeton'] !== jeton) {
       res.writeHead(403).end()
       return
@@ -91,9 +94,20 @@ export function demarrerGarde(
       let texte = ''
       try {
         const recu = JSON.parse(corps)
-        texte = String((route === '/demander' ? recu?.question : recu?.action) ?? '').slice(0, 300)
+        const brut =
+          route === '/demander' ? recu?.question : route === '/autoriser' ? recu?.raison : recu?.action
+        texte = String(brut ?? '').slice(0, 300)
       } catch {
         // Corps illisible : on refuse, sans rien demander à voix haute.
+      }
+
+      if (route === '/autoriser') {
+        if (!texte) return repondre({ ok: false })
+        voix.autoriser(texte).then(
+          (ok) => repondre({ ok }),
+          () => repondre({ ok: false })
+        )
+        return
       }
 
       if (route === '/demander') {

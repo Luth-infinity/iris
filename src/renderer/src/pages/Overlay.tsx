@@ -52,13 +52,13 @@ const ACCUEILS = ['Je t’écoute.', 'Oui ?', 'Qu’est-ce qu’il te faut ?', '
  */
 const FIN_SILENCE = 2000
 /** Personne ne parle après l'appel : on range le micro sans rien envoyer. */
-const ATTENTE_MAX = 10000
+const ATTENTE_MAX = 13000
 /**
- * Après une réponse, le micro se rouvre pour enchaîner. L'attente est plus
- * courte : on n'a peut-être rien à ajouter, et la barre ne doit pas rester
- * dix secondes devant les yeux pour rien.
+ * Après une réponse, le micro se rouvre pour enchaîner. L'attente reste plus
+ * courte qu'un appel : on n'a peut-être rien à ajouter. Six secondes, c'était
+ * trop peu — le temps de réfléchir à sa phrase, Iris était déjà partie.
  */
-const ATTENTE_SUITE = 6000
+const ATTENTE_SUITE = 11000
 /** Garde-fou : une demande plus longue que ça est un micro resté ouvert. */
 const DUREE_MAX = 90000
 /** Durée de son continu qui fait dire « il parle » : un claquement ne suffit pas. */
@@ -87,7 +87,10 @@ export default function Overlay(): JSX.Element {
    * qui lui manque en plein travail, ou une action à confirmer. Tant que
    * c'est posé, la barre affiche cette phrase et rien d'autre.
    */
-  const [demande, setDemande] = useState<string | null>(null)
+  const [demande, setDemande] = useState<{
+    texte: string
+    genre: 'precision' | 'autorisation'
+  } | null>(null)
   const [secondes, setSecondes] = useState(0)
   const [niveau, setNiveau] = useState(0)
   /** Le spectre à suivre : le micro pendant qu'on parle, Iris quand elle répond. */
@@ -109,6 +112,8 @@ export default function Overlay(): JSX.Element {
   const ecouteRef = useRef(0)
   /** Minuterie qui surveille le silence pendant l'écoute. */
   const surveillanceRef = useRef<number | null>(null)
+  /** Dernier énoncé entendu par la veille, en temps de la page. */
+  const entenduRef = useRef(0)
 
   // ─── Nettoyage ────────────────────────────────────────────────────────────
 
@@ -170,9 +175,10 @@ export default function Overlay(): JSX.Element {
 
       let stream: MediaStream
       try {
-        stream = await ouvrirMicro(reglages, () =>
+        stream = await ouvrirMicro(reglages, () => {
           window.api.noter('écoute : micro choisi introuvable, micro par défaut utilisé')
-        )
+          window.api.microPerdu()
+        })
       } catch (err) {
         if (err instanceof ErreurMicro) echouer(err.souci)
         else echouer({ titre: 'Micro indisponible', detail: String(err) })
@@ -251,12 +257,19 @@ export default function Overlay(): JSX.Element {
       // posée devant un micro réglé bas.
       const echantillons = new Float32Array(analyse.analyseur.fftSize)
       const debut = performance.now()
+      entenduRef.current = 0
       let bruit = 0.006
       let sonDepuis = 0
       let parle = false
       let dernierSon = debut
       surveillanceRef.current = window.setInterval(() => {
         if (ecouteRef.current !== ecoute || recorder.state !== 'recording') return
+        // La veille a transcrit quelque chose : quelqu'un parle, quel que soit
+        // ce qu'en dit le niveau sonore.
+        if (entenduRef.current > debut) {
+          parle = true
+          dernierSon = Math.max(dernierSon, entenduRef.current)
+        }
         analyse.analyseur.getFloatTimeDomainData(echantillons)
         let somme = 0
         for (const v of echantillons) somme += v * v
@@ -321,6 +334,9 @@ export default function Overlay(): JSX.Element {
     const veille = veilleRef.current
     if (!veille) return
     veille.journal = (ligne) => window.api.noter(ligne)
+    veille.surEnonce = () => {
+      entenduRef.current = performance.now()
+    }
     veille.surCommande = (commande) => {
       window.api.noter(`commande vocale : ${commande}`)
       if (commande === 'envoyer') arreterRef.current()
@@ -583,11 +599,30 @@ export default function Overlay(): JSX.Element {
                   pendant qu'elle écoute : c'est le seul moment où l'on répond
                   à Iris, et la perdre de vue, c'est ne plus savoir quoi dire. */}
               <p className="line-clamp-3 text-[15px] leading-relaxed text-shell-foreground">
-                {demande}
+                {demande.texte}
               </p>
-              <p className="text-[11px] text-shell-muted">
-                {etat === 'ecoute' ? 'Je t’écoute' : 'Un instant…'}
-              </p>
+              {demande.genre === 'autorisation' ? (
+                // Deux boutons en plus de la voix : on n'a pas toujours envie
+                // de dire « oui » à voix haute, ni de répéter.
+                <div className="mt-1 flex items-center gap-2">
+                  <button
+                    onClick={() => window.api.repondreAutorisation(true)}
+                    className="rounded-full bg-iris px-3.5 py-1.5 text-[13px] font-medium text-iris-foreground transition hover:opacity-90"
+                  >
+                    J’autorise
+                  </button>
+                  <button
+                    onClick={() => window.api.repondreAutorisation(false)}
+                    className="rounded-full px-3 py-1.5 text-[13px] text-shell-muted transition hover:text-shell-foreground"
+                  >
+                    Non
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[11px] text-shell-muted">
+                  {etat === 'ecoute' ? 'Je t’écoute' : 'Un instant…'}
+                </p>
+              )}
             </>
           ) : etat === 'ecoute' ? (
             <>

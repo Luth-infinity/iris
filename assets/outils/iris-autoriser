@@ -1,0 +1,11 @@
+#!/bin/sh
+# Demande l'accès complet, en une phrase parlée. Rend « oui » ou « non ».
+raison="$*"
+[ -z "$raison" ] && { echo 'Usage : iris-autoriser "ce que tu veux faire"'; exit 1; }
+[ -z "$IRIS_GARDE_PORT" ] && exit 0
+
+corps=$(printf '%s' "$raison" | sed 's/\/\\/g; s/"/\\"/g')
+curl -s --max-time 120 -X POST "http://127.0.0.1:$IRIS_GARDE_PORT/autoriser" \
+  -H "x-iris-jeton: $IRIS_GARDE_JETON" -H 'Content-Type: application/json' \
+  -d "{\"raison\":\"$corps\"}" |
+  grep -q '"ok"[[:space:]]*:[[:space:]]*true' && echo oui || echo non

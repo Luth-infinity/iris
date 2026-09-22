@@ -256,7 +256,13 @@ function modeEffectif(reglages: Reglages): string {
 }
 
 function empreinte(reglages: Reglages): string {
-  return [reglages.dossier, modeEffectif(reglages), garde?.port ?? '', garde?.hook ?? ''].join('|')
+  return [
+    reglages.dossier,
+    modeEffectif(reglages),
+    String(reglages.etendu),
+    garde?.port ?? '',
+    garde?.hook ?? ''
+  ].join('|')
 }
 
 /**
@@ -316,13 +322,16 @@ function lancer(modele: Modele, reglages: Reglages, reprendre?: string): Process
     // d'autorisation : la connexion d'un compte passerait à la trappe.
     '--allowedTools',
     ...(process.platform === 'win32'
-      ? ['Bash(iris-connecter.cmd:*)', 'Bash(iris-demander.cmd:*)']
-      : ['Bash(iris-connecter:*)', 'Bash(iris-demander:*)']),
+      ? ['Bash(iris-connecter.cmd:*)', 'Bash(iris-demander.cmd:*)', 'Bash(iris-autoriser.cmd:*)']
+      : ['Bash(iris-connecter:*)', 'Bash(iris-demander:*)', 'Bash(iris-autoriser:*)']),
     // Option à valeurs multiples : elle doit être suivie d'une autre option,
     // sinon elle avalerait ce qui vient après comme un dossier de plus.
     '--add-dir',
     dossier,
     ...usuels.map((d) => d.chemin),
+    // Accès étendu : tout ce qui appartient à l'utilisateur. Au-delà (Windows,
+    // Program Files), une assistante vocale n'a rien à faire.
+    ...(reglages.etendu ? [homedir()] : []),
     ...(mem.chemin ? [dirname(mem.chemin)] : []),
     // Toujours, y compris à la reprise : la consigne vit dans le processus,
     // pas dans la session. Une conversation reprise sans elle oubliait de

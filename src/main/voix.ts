@@ -97,12 +97,57 @@ const EXTENSIONS =
  * tels quels : « visage souriant », « suite tiret essai point h t m l ».
  * Ce filtre rattrape ce qui reste, sans toucher au texte affiché.
  */
+/**
+ * Hébergeurs dont le nom ne dit rien : dans `iris-luth.vercel.app`, le site
+ * s'appelle « iris luth », pas « vercel ».
+ */
+const HEBERGEURS = [
+  'vercel.app',
+  'github.io',
+  'netlify.app',
+  'pages.dev',
+  'web.app',
+  'firebaseapp.com',
+  'herokuapp.com',
+  'onrender.com',
+  'notion.site'
+]
+
+/**
+ * Le nom d'un site, tel qu'on le dit : « youtube », « ton site iris luth ».
+ *
+ * On garde l'étiquette qui porte le sens — celle d'avant le suffixe — et on
+ * jette le reste. Dire l'adresse entière (« api point groq point com ») est
+ * exactement ce qui fait bafouiller une voix de synthèse.
+ */
+function nomDeSite(hote: string): string {
+  const bas = hote.toLowerCase().replace(/^www\./, '')
+  const heberge = HEBERGEURS.find((h) => bas.endsWith('.' + h))
+  // Sans hébergeur connu, on n'enlève que l'extension : tout retirer d'un coup
+  // laissait « api » pour `api.groq.com`.
+  const reste = heberge ? bas.slice(0, -(heberge.length + 1)) : bas.replace(/\.[a-z]{2,}$/, '')
+  const etiquettes = reste.split('.').filter(Boolean)
+  // Les sous-domaines de service ne se disent pas : personne n'a besoin
+  // d'entendre « api » ni « www ».
+  const utiles = etiquettes.filter((e) => e !== 'api' && e !== 'www')
+  const nom = (utiles.length ? utiles : etiquettes).slice(-1)[0] ?? bas
+  return nom.replace(/[-_]+/g, ' ')
+}
+
 export function pourLaVoix(brut: string, dossierTravail = ''): string {
   // Les adresses d'abord : « https://… » ressemble à un chemin (« s:/ »), et
   // le filtre des chemins en gardait le dernier morceau.
   const sansAdresses = brut
-    .replace(/https?:\/\/(www\.)?([a-z0-9-]+)[^\s)]*/gi, '$2')
-    .replace(/\bwww\.([a-z0-9-]+)\.[a-z.]{2,}\S*/gi, '$1')
+    // La ponctuation finale n'appartient pas à l'adresse : sans ce garde-fou,
+    // le point de la phrase partait avec elle et la voix enchaînait.
+    .replace(/https?:\/\/([a-z0-9.-]+)([^\s)»"']*[^\s)»"'.,;:!?])?/gi, (_m, hote: string) =>
+      nomDeSite(hote)
+    )
+    // Une adresse mail se dit lettre à lettre nulle part : le nom suffit.
+    .replace(
+      /\b([a-z0-9._%+-]+)@([a-z0-9.-]+\.[a-z]{2,})\b/gi,
+      (_m, qui: string, hote: string) => `${qui.replace(/[._%+-]+/g, ' ')} chez ${nomDeSite(hote)}`
+    )
   return (
     parlerChemins(sansAdresses, dossierTravail)
       // Le code ne se dit pas : un bloc disparaît, un extrait perd ses marques.
@@ -119,21 +164,47 @@ export function pourLaVoix(brut: string, dossierTravail = ''): string {
       // Les smileys en caractères (« :) », « ^^ », « <3 ») : la voix disait
       // « deux points parenthèse ».
       .replace(/(^|\s)([:;=xX8]-?[)(DPp/\\|*]+|\^\^|\^_\^|<3|xD)(?=\s|$|[.,!?])/g, '$1')
-      // Un nom de site se dit comme à l'oral : « github point com ». Une
-      // adresse complète, elle, est réduite plus haut au seul nom.
-      .replace(/\b([a-z0-9-]+)\.(com|fr|io|dev|app|org|net|co|ai)\b(\/\S*)?/gi, '$1 point $2')
+      // Un domaine écrit sans « https » se dit par son nom, comme le reste :
+      // « youtube », pas « youtube point com », et surtout pas
+      // « api point groq point com ».
+      .replace(
+        /\b([a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|fr|io|dev|app|org|net|co|ai|me|site|shop|eu|be|ch|ca))\b(\/\S*[^\s.,;:!?])?/gi,
+        (_m, hote: string) => nomDeSite(hote)
+      )
       // Un fichier se dit sans son extension, et ses tirets sont des espaces.
       .replace(new RegExp(`\\b([\\w-]+)\\.(${EXTENSIONS})\\b`, 'gi'), (_m, nom: string) =>
         nom.replace(/[-_]+/g, ' ')
       )
+      // Un numéro de version se dit chiffre par chiffre : laissé tel quel, la
+      // voix française lit « zéro virgule trois point un ».
+      .replace(/\b(\d+)\.(\d+)\.(\d+)\b/g, '$1 point $2 point $3')
+      // Deux nombres séparés d'un point ne font une version que si on le dit :
+      // « 1.5 Go » doit rester un nombre.
+      .replace(/\b(version\s+|v)(\d+)\.(\d+)\b/gi, '$1$2 point $3')
+      // Un raccourci se dit comme on le lit à quelqu'un : « Contrôle, Majuscule
+      // et Espace », pas « Ctrl plus Maj plus Espace ».
+      .replace(/\b(Ctrl|Control|Cmd|Alt|Shift|Maj|Super|Win)\s*\+\s*/gi, (_m, touche: string) => {
+        const dit: Record<string, string> = {
+          ctrl: 'Contrôle',
+          control: 'Contrôle',
+          cmd: 'Commande',
+          alt: 'Alt',
+          shift: 'Majuscule',
+          maj: 'Majuscule',
+          super: 'Windows',
+          win: 'Windows'
+        }
+        return `${dit[touche.toLowerCase()] ?? touche} `
+      })
       // Symboles : une flèche ou une barre se dit comme une pause, une
       // esperluette comme « et ». Le reste se tait.
       .replace(/\s*(→|⟶|=>|->|—>|\|)\s*/g, ', ')
       .replace(/\s&\s/g, ' et ')
       .replace(/[·•◦▪►▶✓✔✗✘#~^_=<>{}[\]\\]/g, ' ')
-      // Seulement devant la virgule et le point : « ! » et « ? » gardent
-      // l'espace français, que la voix ignore de toute façon.
-      .replace(/\s+([,.])/g, '$1')
+      // Seulement devant la virgule et le point qui ferment vraiment : sans le
+      // regard en avant, « le fichier .env » devenait « le fichier.env », que
+      // la voix lit d'un seul tenant.
+      .replace(/\s+([,.])(?=\s|$)/g, '$1')
       .replace(/([,.]){2,}/g, '$1')
       .replace(/\s+/g, ' ')
       .trim()

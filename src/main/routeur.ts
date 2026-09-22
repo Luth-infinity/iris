@@ -79,16 +79,25 @@ function nouveauSujetDemande(question: string): boolean {
  */
 export function trierParRegles(question: string): Modele {
   const q = plat(question)
+  // Les verbes sont écrits avec leurs terminaisons : « installe » ne
+  // reconnaissait pas « installer », et « tu peux installer l'app » partait sur
+  // le plus petit modèle, qui répondait à côté.
   const faire =
-    /\b(cree|creer|creez|fais|faire|developpe|code|coder|programme|construis|monte|genere|corrige|debogue|repare|refais|refactorise|ajoute|modifie|installe|deploie|publie)\b/
+    /\b(cre[ée]\w*|fais|faire|d[ée]veloppe\w*|code\w*|programme\w*|construi\w*|monte\w*|g[ée]n[èe]re\w*|corrige\w*|d[ée]bogue\w*|r[ée]pare\w*|refai\w*|refactorise\w*|ajoute\w*|modifie\w*|d[ée]ploie\w*|publie\w*)\b/
+  // Toucher à la machine elle-même : installer un logiciel, régler un
+  // périphérique, changer une configuration. C'est rarement une affaire de
+  // deux commandes, et ça mérite mieux qu'une réponse expédiée.
+  const machine =
+    /\b(installe\w*|d[ée]sinstalle\w*|configure\w*|param[èe]tre\w*|r[ée]gle\w*|optimise\w*|am[ée]liore\w*|mets? [àa] jour|met\w* en place|branche\w*|connecte\w*|nettoie\w*|r[ée]pare\w*)\b/
   const ouvrage =
-    /\b(app|appli|application|site|outil|script|page|composant|projet|plugin|extension|jeu|bouton|fonction|bug|code|api|serveur|base de donnees|maquette)\b/
+    /\b(app|appli|application|site|outil|script|page|composant|projet|plugin|extension|jeu|bouton|fonction|bug|code|api|serveur|base de donnees|maquette|micro|son|audio|casque|clavier|souris|[ée]cran|pilote|driver|logiciel|programme|windows|syst[èe]me|r[ée]glages?|param[èe]tres?)\b/
   const ampleur =
     /\b(de zero|from scratch|refonte|architecture|complet|complete|entier|entiere|plateforme|gros projet|tout un|toute une|saas|backend)\b/
 
   if (faire.test(q) && ouvrage.test(q)) {
     return ampleur.test(q) || q.split(/\s+/).length > 45 ? 'opus' : 'sonnet'
   }
+  if (machine.test(q)) return 'sonnet'
   // Une action simple sur le PC (ouvrir, lancer, chercher, ranger) ou une
   // question : Haiku sait appeler un outil, et il le fait vite.
   return 'haiku'

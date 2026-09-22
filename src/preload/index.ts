@@ -37,9 +37,12 @@ const api = {
     ipcRenderer.on('demarrer-ecoute', handler)
     return () => ipcRenderer.removeListener('demarrer-ecoute', handler)
   },
-  /** La question de confirmation en cours, ou `null` quand elle est tranchée. */
-  surConfirmation: (cb: (phrase: string | null) => void) =>
-    recevoir<string | null>('confirmation', cb),
+  /** La question posée par Iris, ou `null` quand elle est tranchée. */
+  surConfirmation: (
+    cb: (demande: { texte: string; genre: 'precision' | 'autorisation' } | null) => void
+  ) => recevoir<{ texte: string; genre: 'precision' | 'autorisation' } | null>('confirmation', cb),
+  /** Le bouton d'autorisation de la barre : oui ou non, sans parler. */
+  repondreAutorisation: (oui: boolean): void => ipcRenderer.send('repondre-autorisation', oui),
   surArreterEcoute: (cb: () => void) => ecouter('arreter-ecoute', cb),
   /** Coupe la lecture en cours et vide la file. */
   surTaire: (cb: () => void) => ecouter('taire', cb),
@@ -54,6 +57,8 @@ const api = {
 
   /** Les octets du modèle de veille, ou `null` s'il manque. */
   modeleVeille: (): Promise<Uint8Array | null> => ipcRenderer.invoke('modele-veille'),
+  /** Le micro enregistré n'existe plus : Iris l'oublie. */
+  microPerdu: (): void => ipcRenderer.send('micro-perdu'),
   /** Une ligne pour `journal.log`, côté main. */
   noter: (ligne: string): void => ipcRenderer.send('noter', ligne),
   /** Le mot « Iris » vient d'être prononcé. */

@@ -91,6 +91,11 @@ export type Reglages = {
   permission: Permission
   /** Le prénom qu'Iris donne à la personne qui lui parle. '' : elle n'en dit pas. */
   prenom: string
+  /**
+   * Accès à tout le dossier de l'utilisateur, et pas seulement au dossier de
+   * travail et aux dossiers usuels.
+   */
+  etendu: boolean
   /** La gamme de couleur des états vivants. */
   couleur: Couleur
   /** Le carillon joué au lancement. */
@@ -113,8 +118,11 @@ export type Reglages = {
  *
  * 5 : la gamme de couleur et le son de démarrage s'ajoutent. Rien à migrer,
  * leurs défauts sont ceux d'avant : le violet, et le carillon d'Iris.
+ *
+ * 6 : l'accès étendu s'ajoute, décoché. On ne l'accorde jamais sans être
+ * demandé — c'est tout l'intérêt du bouton d'autorisation.
  */
-const VERSION = 5
+const VERSION = 6
 
 export const REGLAGES_DEFAUT: Reglages = {
   version: VERSION,
@@ -139,6 +147,7 @@ export const REGLAGES_DEFAUT: Reglages = {
   dossier: '',
   permission: 'edition',
   prenom: '',
+  etendu: false,
   couleur: 'iris',
   sonDemarrage: 'iris'
 }
@@ -265,6 +274,7 @@ export function normalizeReglages(brut: unknown): Reglages {
         : brut && version < 4
           ? 'Lucas'
           : '',
+    etendu: typeof r.etendu === 'boolean' ? r.etendu : REGLAGES_DEFAUT.etendu,
     couleur:
       typeof r.couleur === 'string' && r.couleur in COULEURS
         ? (r.couleur as Couleur)

@@ -65,6 +65,15 @@ export class Veille {
   private mode: Mode = 'appel'
   /** Branché par l'overlay : les commandes agissent sur son enregistrement. */
   surCommande: ((c: Commande) => void) | null = null
+  /**
+   * Un énoncé entendu pendant l'écoute, quel qu'il soit.
+   *
+   * L'overlay décide de la fin d'une demande au niveau sonore, et ce seuil
+   * ratait une voix posée ou un micro loin : au bout de quelques secondes, il
+   * concluait que personne ne parlait et refermait, alors que la veille, elle,
+   * transcrivait la phrase. Les deux oreilles se parlent maintenant.
+   */
+  surEnonce: ((texte: string) => void) | null = null
   /** Branché par l'overlay : ce que la veille entend, vers `journal.log`. */
   journal: ((ligne: string) => void) | null = null
 
@@ -267,6 +276,7 @@ export class Veille {
   private examinerCommande(texte: string): void {
     const phrase = aplatir(texte)
     if (!phrase) return
+    if (phrase) this.surEnonce?.(phrase)
     if (ANNULATIONS.includes(phrase)) this.surCommande?.('annuler')
     else if (FINS_ENVOI.some((f) => phrase === f || phrase.endsWith(' ' + f))) {
       this.surCommande?.('envoyer')

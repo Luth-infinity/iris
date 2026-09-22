@@ -155,6 +155,12 @@ let tourEnCours = false
 let ecouteEnSuite = false
 /** Le dernier échange abouti, pour que le tri juge si la suivante le continue. */
 let precedent: { question: string; reponse: string; fin: number } | null = null
+/**
+ * Le modèle du sujet en cours. Une demande qui continue un sujet ne redescend
+ * pas d'un cran : « tu peux le tester ? » après un travail sur Sonnet partait
+ * sur Haiku, qui reprenait la conversation sans savoir la mener.
+ */
+let modeleCourant: Modele | null = null
 
 /**
  * Une action irréversible attend le oui de Lucas (voir `garde.ts`). Une seule à
@@ -174,6 +180,8 @@ let confirmation: {
  */
 let question: {
   texte: string
+  /** `autorisation` attend un oui ou un non, et un bouton s'affiche. */
+  genre: 'precision' | 'autorisation'
   audioEnvoye: boolean
   resoudre: (reponse: string) => void
 } | null = null
@@ -841,8 +849,18 @@ async function poser(question: string): Promise<void> {
     ? (reglages.modele as Modele)
     : null
   // Un modèle dit à la voix l'emporte sur celui des réglages.
-  const modele = tri.source === 'voix' ? tri.modele : (impose ?? tri.modele)
-  noter(`tri : ${modele}, ${tri.suite ? 'suite du sujet' : 'nouveau sujet'} (${tri.source})`)
+  const choisi = tri.source === 'voix' ? tri.modele : (impose ?? tri.modele)
+  const rang: Record<Modele, number> = { haiku: 0, sonnet: 1, opus: 2 }
+  // Dans un même sujet, on garde le plus capable des deux : changer de modèle
+  // en cours de route coûte une reprise, et redescendre coûte la réponse.
+  const modele =
+    tri.suite && tri.source !== 'voix' && modeleCourant && rang[modeleCourant] > rang[choisi]
+      ? modeleCourant
+      : choisi
+  modeleCourant = tri.suite ? modele : choisi
+  noter(
+    `tri : ${modele}${modele === choisi ? '' : ` (tenu, ${choisi} proposé)`}, ${tri.suite ? 'suite du sujet' : 'nouveau sujet'} (${tri.source})`
+  )
 
   diseur = reglages.parler
     ? new Diseur(reglages, (mp3) => {
@@ -1054,8 +1072,11 @@ function demanderConfirmation(action: string): Promise<boolean> {
  * n'est pas un oui ou un non : c'est une phrase, rendue telle quelle à l'agent
  * qui attend. Sans réponse, une chaîne vide : à lui de trancher prudemment.
  */
-function demanderPrecision(texte: string): Promise<string> {
-  noter(`question posée : ${texte.slice(0, 80)}`)
+function demanderPrecision(
+  texte: string,
+  genre: 'precision' | 'autorisation' = 'precision'
+): Promise<string> {
+  noter(`question posée (${genre}) : ${texte.slice(0, 80)}`)
   // Une seule à la fois : un agent qui en poserait deux d'affilée n'attend pas
   // vraiment de réponse.
   if (question || confirmation) return Promise.resolve('')
@@ -1064,6 +1085,7 @@ function demanderPrecision(texte: string): Promise<string> {
     const minuterie = setTimeout(() => terminerQuestion('', 'sans réponse'), 90000)
     question = {
       texte,
+      genre,
       audioEnvoye: false,
       resoudre: (reponse) => {
         clearTimeout(minuterie)
@@ -1073,7 +1095,7 @@ function demanderPrecision(texte: string): Promise<string> {
 
     // La barre revient en face : c'est à lui de parler, il doit la voir.
     desarmerRetrait()
-    diffuser('confirmation', texte)
+    diffuser('confirmation', { texte, genre })
 
     if (!reglages.parler) {
       void poserForme('barre').then(montrerOverlay).then(() => ecouter('question'))
@@ -1106,6 +1128,41 @@ function terminerQuestion(reponse: string, raison: string): void {
     poserEtat('reflexion')
     armerRetrait()
   }
+}
+
+/**
+ * L'agent est bloqué faute de droits : Iris demande l'accès complet.
+ *
+ * C'est le seul endroit où les autorisations changent toutes seules, et
+ * seulement sur un oui : le mode passe à « Tout » (les actions irréversibles
+ * restent soumises au garde) et le dossier de l'utilisateur s'ouvre en entier.
+ * Un bouton s'affiche dans la barre, parce qu'on n'a pas toujours envie de
+ * dire « oui » à voix haute devant quelqu'un.
+ */
+async function demanderAutorisation(raison: string): Promise<boolean> {
+  if (reglages.permission === 'total' && reglages.etendu) return true
+
+  const propre = raison.replace(/[.\s]+$/, '')
+  const dit = await demanderPrecision(
+    `${propre}. Je n'ai pas les droits qu'il faut. Tu me les donnes ?`,
+    'autorisation'
+  )
+  if (!estOui(dit)) {
+    noter('autorisation refusée')
+    return false
+  }
+  accorderTout()
+  return true
+}
+
+/** Passe Iris en accès complet, et relance les Claude Code d'avance. */
+function accorderTout(): void {
+  reglages = { ...reglages, permission: 'total', etendu: true }
+  enregistrerReglages(reglages)
+  rafraichirTray()
+  cerveau.invalider(reglages)
+  diffuser('reglages', reglages)
+  noter('autorisation accordée : accès complet')
 }
 
 function terminerConfirmation(ok: boolean, raison: string): void {
@@ -1321,7 +1378,8 @@ async function demarrerCerveau(): Promise<void> {
 
   const garde = await demarrerGarde(join(assetsDir, 'garde.cjs'), {
     confirmer: demanderConfirmation,
-    demander: demanderPrecision
+    demander: (texte) => demanderPrecision(texte),
+    autoriser: demanderAutorisation
   })
   noter(
     garde?.hook
@@ -1538,6 +1596,20 @@ app.whenReady().then(() => {
 
   // Ce que l'overlay veut consigner : la veille, le micro, la lecture.
   ipcMain.on('noter', (_, ligne: string) => noter(`overlay : ${ligne}`))
+
+  /**
+   * Le micro choisi n'existe plus (débranché, identifiant périmé d'une session
+   * à l'autre). On l'oublie : sans ça, le repli sur le micro par défaut se
+   * rejouait à chaque écoute, et les paramètres affichaient encore un
+   * périphérique qui n'était plus écouté.
+   */
+  ipcMain.on('micro-perdu', () => {
+    if (!reglages.peripherique) return
+    reglages = { ...reglages, peripherique: '' }
+    enregistrerReglages(reglages)
+    diffuser('reglages', reglages)
+    noter('micro choisi oublié : on reste sur celui par défaut')
+  })
   ipcMain.on('nouvelle-conversation', repartirDeZero)
 
   // Les réglages en cours d'édition, pas ceux enregistrés : on veut entendre
@@ -1614,6 +1686,13 @@ app.whenReady().then(() => {
   ipcMain.on('ouvrir-lien', (_, url: unknown) => {
     // Seules les adresses du guide, et seulement en clair sur le réseau.
     if (typeof url === 'string' && url.startsWith('https://')) void shell.openExternal(url)
+  })
+
+  /** Le bouton de la barre : accorder ou refuser l'accès sans parler. */
+  ipcMain.on('repondre-autorisation', (_, oui: boolean) => {
+    if (question?.genre !== 'autorisation') return
+    overlay?.webContents.send('taire')
+    terminerQuestion(oui ? 'oui' : 'non', oui ? 'bouton oui' : 'bouton non')
   })
 
   ipcMain.on('ouvrir-parametres', ouvrirParametres)

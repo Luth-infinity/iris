@@ -4,7 +4,11 @@
 # la réponse revient sur la sortie standard. Le serveur est celui d'Iris, sur
 # la boucle locale, avec le jeton tiré au démarrage : sans ces deux variables,
 # personne d'autre ne peut faire parler Iris.
-param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Mots)
+param(
+  # 'demander' rend la phrase entendue ; 'autoriser' rend oui ou non.
+  [ValidateSet('demander', 'autoriser')][string]$Route = 'demander',
+  [Parameter(ValueFromRemainingArguments = $true)][string[]]$Mots
+)
 
 # La réponse contient des accents : sans ça, la sortie passe par la page de
 # code de la console et l'agent reçoit du charabia.
@@ -21,11 +25,13 @@ if (-not $port -or -not $jeton) {
 }
 
 try {
-  $corps = @{ question = $question } | ConvertTo-Json -Compress
-  $reponse = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$port/demander" `
+  $charge = if ($Route -eq 'autoriser') { @{ raison = $question } } else { @{ question = $question } }
+  $corps = $charge | ConvertTo-Json -Compress
+  $reponse = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$port/$Route" `
     -Headers @{ 'x-iris-jeton' = $jeton } -ContentType 'application/json' `
     -Body ([System.Text.Encoding]::UTF8.GetBytes($corps)) -TimeoutSec 120
-  if ($reponse.reponse) { Write-Output $reponse.reponse }
+  if ($Route -eq 'autoriser') { if ($reponse.ok) { Write-Output 'oui' } else { Write-Output 'non' } }
+  elseif ($reponse.reponse) { Write-Output $reponse.reponse }
 } catch {
   # Pas de réponse : l'agent reçoit une sortie vide, et tranche lui-même.
 }

@@ -185,10 +185,21 @@ niveaux :
   propres règles** : interdire les emojis la faisait expliquer « la voix les
   lirait », ce qui était pire. Elle peut en mettre, ils s'affichent.
 - **`pourLaVoix()`** dans `voix.ts` rattrape le reste avant la synthèse, sans
-  toucher au texte affiché : emojis retirés, adresses complètes réduites au
-  nom, `github.com` dit « github point com », extensions de fichier retirées,
-  symboles transformés en pauses. Les adresses passent **avant** le filtre des
-  chemins (« https: » ressemble à « C: »).
+  toucher au texte affiché. Les adresses passent **avant** le filtre des
+  chemins (« https: » ressemble à « C: »). Ce qu'il fait, revu le 22/09 après
+  « elle parle mal, elle dit des trucs comme sur point machin » :
+  - **une adresse se dit par le nom du site**, jamais épelée :
+    `iris-luth.vercel.app` → « iris luth » (l'hébergeur ne dit rien),
+    `api.groq.com` → « groq », `youtube.com` → « youtube ». Avant, les
+    sous-domaines et les points survivaient, d'où le bafouillage.
+  - la ponctuation finale n'est plus avalée par l'adresse ;
+  - un mail se dit « contact chez posidea » ;
+  - `0.3.1` se dit « 0 point 3 point 1 », mais `1.5 Go` reste un nombre ;
+  - `Ctrl+Maj+Espace` devient « Contrôle Majuscule Espace » ;
+  - l'espace devant un point n'est retiré que si le point ferme vraiment la
+    phrase : « le fichier .env » devenait « le fichier.env ».
+  - Les cas sont rejoués dans `verif/` (`cas.mjs`) : c'est le seul moyen de
+    voir ce que la voix dira vraiment.
 - **Rien sans lettre ni chiffre n'est synthétisé** : « 😊. » devenait « . »,
   lu « point ». Les smileys en caractères (« :) », « ^^ », « <3 ») sont retirés.
 - **Une question n'annule jamais** (`lireDemande`) : « ça va » figurait dans
@@ -278,6 +289,20 @@ reprend avec la réponse.
 - La consigne cadre l'usage : une seule question courte, seulement quand la
   réponse change ce qui va être fait.
 
+## Autoriser l'accès complet
+
+Iris démarre volontairement étroite : le dossier de travail, les dossiers
+usuels, et l'écriture seule. Quand un outil lui est refusé, l'agent lance
+`iris-autoriser.cmd "ce qu'il voulait faire"` : elle le dit à voix haute,
+affiche **« J'autorise »** et **« Non »** dans la barre, et écoute. Sur un oui
+— dit ou cliqué —, `accorderTout()` passe la permission à « Tout » et ouvre
+`etendu` (tout le dossier de l'utilisateur, jamais Windows ni Program Files),
+enregistre, et relance les Claude Code d'avance.
+
+Le bouton existe parce qu'on n'a pas toujours envie de dire « oui » à voix
+haute, et parce qu'une autorisation mérite un geste. Les actions irréversibles
+restent soumises au garde, même une fois l'accès donné.
+
 ## Garde de l'irréversible — inachevé
 
 `garde.ts` (serveur local à jeton) + `assets/garde.cjs` (hook `PreToolUse`) +
@@ -301,10 +326,41 @@ depuis la session. Écriture par ajout, élagage tous les 50 ajouts. Les erreurs
 non rattrapées du main, la chute de l'overlay (`render-process-gone`, avec
 rechargement) et ses `console.error` y remontent.
 
+**Le journal n'a jamais été muet.** Pendant des jours, il semblait ne rien
+recevoir : c'était une illusion de lecture. L'application Claude est installée
+en paquet (MSIX), donc tout ce qu'elle et ses processus enfants lisent ou
+écrivent dans `AppData\Roaming` passe par une copie privée
+(`%LOCALAPPDATA%/Packages/Claude_*/LocalCache/Roaming/`). Une session de
+développement lisait cette copie figée, pendant qu'Iris, lancée par Lucas,
+écrivait dans le vrai dossier. Effacer la copie rend la vue réelle. À faire
+avant de conclure quoi que ce soit sur un fichier de `%APPDATA%`.
+
 `%APPDATA%/iris/journal.log`, 200 lignes : démarrage, veille prête ou non, ce
 que la veille entend (énoncés définitifs), changements d'état, mot entendu,
 questions, fin de lecture. **C'est la première chose à lire** quand Lucas dit
 « elle ne répond plus » : l'enchaînement exact dit où la chaîne s'est arrêtée.
+
+## Ce que le journal a appris (22/09/2026)
+
+Premier vrai journal d'usage, et trois défauts qu'aucun essai n'avait montrés :
+
+- **Elle partait en plein milieu.** Après une réponse, le micro se rouvrait
+  pour six secondes, et le seuil sonore de l'overlay ne comptait pas toujours
+  une voix posée : au bout du délai, il concluait que personne ne parlait et
+  refermait, alors que la veille, elle, transcrivait la phrase. Les deux
+  oreilles se parlent maintenant (`Veille.surEnonce` → l'écoute compte cet
+  énoncé comme de la parole), et les délais passent à 11 et 13 secondes.
+- **Tout partait sur Haiku.** « Tu peux installer l'app Logitech » n'était pas
+  reconnu comme une action : les verbes des règles étaient écrits sans leurs
+  terminaisons (`installe`, jamais `installer`). D'où des réponses expédiées,
+  qui passaient pour « elle explique mal ». Les verbes acceptent leurs
+  terminaisons, une famille « toucher à la machine » part sur Sonnet, et un
+  sujet ne **redescend** plus de modèle en cours de route (`modeleCourant`).
+- **Le micro choisi n'existait plus**, à chaque écoute, en silence. Il est
+  maintenant oublié à la première absence (`micro-perdu`).
+
+Reste ouvert : un `overlay tombé (crashed, code -1)` au repos, rechargé
+automatiquement, sans cause trouvée.
 
 ## Les trois décisions qui tiennent tout
 
