@@ -19,7 +19,12 @@ import http from 'http'
  * un jeton tiré au hasard à chaque démarrage.
  */
 
-export type Garde = { port: number; jeton: string; commande: string }
+/**
+ * Le serveur local d'Iris. `hook` est la commande à donner à Claude Code pour
+ * le garde ; elle vaut `null` quand Node manque sur la machine — les questions,
+ * elles, fonctionnent quand même.
+ */
+export type Garde = { port: number; jeton: string; hook: string | null }
 
 /**
  * Le hook tourne sous Node. On prend celui de la machine plutôt que de
@@ -52,15 +57,19 @@ function trouverNode(): string | null {
  */
 export function demarrerGarde(
   script: string,
-  confirmer: (action: string) => Promise<boolean>
+  voix: {
+    /** Une action irréversible attend un oui ou un non. */
+    confirmer: (action: string) => Promise<boolean>
+    /** Il manque une information à l'agent : Iris pose la question et écoute. */
+    demander: (question: string) => Promise<string>
+  }
 ): Promise<Garde | null> {
   const node = trouverNode()
-  if (!node || !existsSync(script)) return Promise.resolve(null)
-
   const jeton = randomBytes(24).toString('hex')
 
   const serveur = http.createServer((req, res) => {
-    if (req.method !== 'POST' || req.url !== '/confirmer' || req.headers['x-iris-jeton'] !== jeton) {
+    const route = req.url === '/confirmer' || req.url === '/demander' ? req.url : ''
+    if (req.method !== 'POST' || !route || req.headers['x-iris-jeton'] !== jeton) {
       res.writeHead(403).end()
       return
     }
@@ -68,22 +77,39 @@ export function demarrerGarde(
     req.setEncoding('utf-8')
     req.on('data', (m: string) => {
       corps += m
-      // Une demande de confirmation tient en une phrase.
+      // Une demande, comme une question, tient en une phrase.
       if (corps.length > 4000) req.destroy()
     })
     req.on('end', () => {
-      let action = ''
+      const repondre = (charge: object): void => {
+        // Le jeu de caractères est dit explicitement : sans lui, le client
+        // PowerShell de Windows lit la réponse en latin-1 et les accents
+        // reviennent à l'agent en charabia.
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+        res.end(JSON.stringify(charge))
+      }
+      let texte = ''
       try {
-        action = String(JSON.parse(corps)?.action ?? '').slice(0, 300)
+        const recu = JSON.parse(corps)
+        texte = String((route === '/demander' ? recu?.question : recu?.action) ?? '').slice(0, 300)
       } catch {
-        // Corps illisible : on refuse, sans rien demander.
+        // Corps illisible : on refuse, sans rien demander à voix haute.
       }
-      const repondre = (ok: boolean): void => {
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok }))
+
+      if (route === '/demander') {
+        if (!texte) return repondre({ reponse: '' })
+        voix.demander(texte).then(
+          (reponse) => repondre({ reponse }),
+          () => repondre({ reponse: '' })
+        )
+        return
       }
-      if (!action) return repondre(false)
-      confirmer(action).then(repondre, () => repondre(false))
+
+      if (!texte) return repondre({ ok: false })
+      voix.confirmer(texte).then(
+        (ok) => repondre({ ok }),
+        () => repondre({ ok: false })
+      )
     })
   })
 
@@ -93,9 +119,14 @@ export function demarrerGarde(
       const adresse = serveur.address()
       if (!adresse || typeof adresse === 'string') return resolve(null)
       // Barres obliques : la commande passe par l'interpréteur que Claude Code
-      // choisit pour ses hooks, et les deux acceptent cette forme.
-      const commande = `"${node.replace(/\\/g, '/')}" "${script.replace(/\\/g, '/')}"`
-      resolve({ port: adresse.port, jeton, commande })
+      // choisit pour ses hooks, et les deux acceptent cette forme. Sans Node
+      // sur la machine, pas de garde — mais le serveur tourne, et les
+      // questions passent.
+      const hook =
+        node && existsSync(script)
+          ? `"${node.replace(/\\/g, '/')}" "${script.replace(/\\/g, '/')}"`
+          : null
+      resolve({ port: adresse.port, jeton, hook })
     })
   })
 }

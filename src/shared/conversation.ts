@@ -18,7 +18,7 @@ export type Forme = 'barre' | 'pastille'
  * Ce que l'écoute recueille : une demande, une réponse qui enchaîne sur la
  * précédente, ou le oui / non d'une confirmation (voir `garde.ts`).
  */
-export type ModeEcoute = 'demande' | 'suite' | 'confirmation'
+export type ModeEcoute = 'demande' | 'suite' | 'confirmation' | 'question'
 
 /** Au-delà de ce délai sans un mot, Iris se retire sur le côté. */
 export const AVANT_RETRAIT = 3500
@@ -147,6 +147,7 @@ export function consigne(
     ...usuels.map((d) => `  - ${d.nom} : ${d.chemin}`),
     "- Tu as tes outils habituels (fichiers, recherche, commandes) : sers-t'en sans demander la permission de t'en servir.",
     "- Tu as le droit de ne rien faire et de simplement répondre, quand c'est une question.",
+    `- **Pour lui demander quelque chose en plein travail** : lance en Bash ${qui.mac ? 'iris-demander' : 'iris-demander.cmd'} suivi de ta question entre guillemets. Iris la dit à voix haute, écoute la réponse, et te la rend. À utiliser seulement quand la réponse change vraiment ce que tu vas faire : un choix entre deux options, un nom, une précision qu'aucun fichier ne donne. Une seule question courte, jamais pour valider ce que tu sais déjà faire. Sans réponse, tu reçois une ligne vide : prends alors la décision la plus prudente et dis-le.`,
         "- S'il y a plusieurs comptes Figma, c'est un serveur MCP par compte (leurs noms commencent par figma). Choisis le serveur d'après le client du fichier, vérifie avec whoami en cas de doute, et ne touche jamais au fichier d'un client avec le compte d'un autre.",
     `- Si l'un de ces serveurs demande une authentification, ou si ${Lucas} veut connecter ou reconnecter un compte, lance en Bash : ${qui.mac ? 'iris-connecter' : 'iris-connecter.cmd'} suivi du nom du serveur. Une petite fenêtre s'ouvre et la page de connexion s'affiche dans Firefox en navigation privée : dis-lui de s'y connecter avec le bon compte. Les outils de ce compte seront là à la demande suivante.`,
     qui.mac

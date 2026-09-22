@@ -253,6 +253,31 @@ on s'y identifie avec le bon compte, sans toucher à la session ouverte.
 - Aucun nom de client dans le code (dépôt public) : Iris apprend quel serveur
   va avec quel client par la mémoire du dossier `Apps`.
 
+## Quand elle demande une précision
+
+L'agent peut s'arrêter en plein travail pour demander ce qui lui manque :
+`iris-demander.cmd "ta question"` (ou `iris-demander` sur Mac) poste la
+question au serveur local d'Iris, qui la **dit à voix haute**, ramène la barre
+en face, écoute, et rend la phrase entendue sur la sortie standard. L'agent
+reprend avec la réponse.
+
+- Même plomberie que le garde : `garde.ts` sert désormais `/confirmer` **et**
+  `/demander`, sur la boucle locale, avec le jeton du démarrage. Le serveur
+  tourne toujours ; seul le hook du garde demande Node et le mode « Tout ».
+- `question` dans `index.ts` est l'attente en cours : tant qu'elle est posée,
+  une phrase dite n'ouvre pas un nouveau tour, elle est la réponse. Silence,
+  raccourci ou tour abandonné rendent une réponse vide, et l'agent tranche
+  lui-même — la consigne le lui dit.
+- L'overlay affiche la question au centre (canal `confirmation`) pendant
+  qu'elle la dit et pendant qu'elle écoute : c'est le seul moment où l'on
+  répond à Iris, la perdre de vue c'est ne plus savoir quoi dire.
+- **`charset=utf-8` sur la réponse du serveur** : sans lui, le client
+  PowerShell lit en latin-1 et l'agent reçoit « franÃ§ais ». Et
+  `[Console]::OutputEncoding` dans `demander.ps1`, pour la même raison en
+  sortie.
+- La consigne cadre l'usage : une seule question courte, seulement quand la
+  réponse change ce qui va être fait.
+
 ## Garde de l'irréversible — inachevé
 
 `garde.ts` (serveur local à jeton) + `assets/garde.cjs` (hook `PreToolUse`) +

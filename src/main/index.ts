@@ -167,6 +167,17 @@ let confirmation: {
   resoudre: (ok: boolean) => void
 } | null = null
 
+/**
+ * L'agent a besoin d'une précision et s'est arrêté pour la demander. La
+ * réponse est sa phrase, telle qu'elle a été dite : c'est le seul moment où
+ * ce qu'on dit ne part pas à un nouveau tour.
+ */
+let question: {
+  texte: string
+  audioEnvoye: boolean
+  resoudre: (reponse: string) => void
+} | null = null
+
 const assetsDir = app.isPackaged
   ? join(process.resourcesPath, 'assets')
   : join(__dirname, '../../assets')
@@ -757,6 +768,7 @@ let tourCourant = 0
 function abandonnerTour(): void {
   tourCourant++
   tourEnCours = false
+  terminerQuestion('', 'échange interrompu')
   terminerConfirmation(false, 'échange interrompu')
   cerveau.interrompre()
   diseur?.taire()
@@ -925,6 +937,13 @@ async function basculer(): Promise<void> {
     return
   }
 
+  // La question de l'agent est encore en train d'être dite : le raccourci la
+  // laisse sans réponse, comme on tournerait les talons.
+  if (question) {
+    overlay?.webContents.send('taire')
+    terminerQuestion('', 'raccourci')
+    return
+  }
   // La question de confirmation est encore en train d'être dite : le
   // raccourci vaut refus, comme on couperait quelqu'un d'un « non ».
   if (confirmation) {
@@ -1026,6 +1045,67 @@ function demanderConfirmation(action: string): Promise<boolean> {
         if (confirmation) void ecouter('confirmation')
       })
   })
+}
+
+/**
+ * Iris pose la question de l'agent et rend la réponse.
+ *
+ * Même chemin que la confirmation — elle parle, puis écoute — mais la réponse
+ * n'est pas un oui ou un non : c'est une phrase, rendue telle quelle à l'agent
+ * qui attend. Sans réponse, une chaîne vide : à lui de trancher prudemment.
+ */
+function demanderPrecision(texte: string): Promise<string> {
+  noter(`question posée : ${texte.slice(0, 80)}`)
+  // Une seule à la fois : un agent qui en poserait deux d'affilée n'attend pas
+  // vraiment de réponse.
+  if (question || confirmation) return Promise.resolve('')
+
+  return new Promise((resolve) => {
+    const minuterie = setTimeout(() => terminerQuestion('', 'sans réponse'), 90000)
+    question = {
+      texte,
+      audioEnvoye: false,
+      resoudre: (reponse) => {
+        clearTimeout(minuterie)
+        resolve(reponse)
+      }
+    }
+
+    // La barre revient en face : c'est à lui de parler, il doit la voir.
+    desarmerRetrait()
+    diffuser('confirmation', texte)
+
+    if (!reglages.parler) {
+      void poserForme('barre').then(montrerOverlay).then(() => ecouter('question'))
+      return
+    }
+    poserEtat('parole')
+    void poserForme('barre').then(montrerOverlay)
+    synthetiser(texte, reglages)
+      .then((mp3) => {
+        if (!question) return
+        question.audioEnvoye = true
+        overlay?.webContents.send('audio', mp3.toString('base64'))
+      })
+      .catch(() => {
+        // La voix a échoué : la question reste écrite, on écoute quand même.
+        if (question) void ecouter('question')
+      })
+  })
+}
+
+function terminerQuestion(reponse: string, raison: string): void {
+  const q = question
+  if (!q) return
+  question = null
+  noter(`réponse à la question : ${reponse ? reponse.slice(0, 60) : `(rien — ${raison})`}`)
+  diffuser('confirmation', null)
+  q.resoudre(reponse)
+  // L'agent reprend son travail : on le retrouve au travail, sur le côté.
+  if (tourEnCours) {
+    poserEtat('reflexion')
+    armerRetrait()
+  }
 }
 
 function terminerConfirmation(ok: boolean, raison: string): void {
@@ -1239,11 +1319,16 @@ async function demarrerCerveau(): Promise<void> {
   }
   cerveau.brancherMemoire(lireMemoire)
 
-  const garde = await demarrerGarde(join(assetsDir, 'garde.cjs'), demanderConfirmation)
+  const garde = await demarrerGarde(join(assetsDir, 'garde.cjs'), {
+    confirmer: demanderConfirmation,
+    demander: demanderPrecision
+  })
   noter(
-    garde
+    garde?.hook
       ? 'garde prêt'
-      : 'garde indisponible (Node introuvable ?) : « Tout » retombe sur l’écriture seule'
+      : garde
+        ? 'garde indisponible (Node introuvable ?) : « Tout » retombe sur l’écriture seule'
+        : 'serveur local indisponible : ni garde, ni questions'
   )
   cerveau.brancher({ garde, journal: noter })
   cerveau.preparer(reglages)
@@ -1330,6 +1415,12 @@ app.whenReady().then(() => {
 
   // L'overlay a fini de transcrire : la question part à l'agent.
   ipcMain.on('question', (_, texte: string) => {
+    // L'agent attend une précision : cette phrase est sa réponse, pas une
+    // nouvelle demande.
+    if (question) {
+      terminerQuestion(texte, 'dite')
+      return
+    }
     // En pleine confirmation, ce qu'on vient de dire est un oui ou un non,
     // pas une nouvelle demande.
     if (confirmation) {
@@ -1342,6 +1433,11 @@ app.whenReady().then(() => {
 
   // Écoute abandonnée (silence, erreur de transcription, Échap).
   ipcMain.on('ecoute-annulee', () => {
+    // Rien dit : l'agent reprend sans la précision.
+    if (question) {
+      terminerQuestion('', 'silence')
+      return
+    }
     if (confirmation) {
       terminerConfirmation(false, 'pas de réponse')
       return
@@ -1353,6 +1449,7 @@ app.whenReady().then(() => {
   })
 
   ipcMain.on('ecoute-erreur', (_, message: string) => {
+    if (question) terminerQuestion('', 'micro en erreur')
     if (confirmation) terminerConfirmation(false, 'micro en erreur')
     poserEtat('erreur')
     diffuser('erreur', message)
@@ -1364,6 +1461,11 @@ app.whenReady().then(() => {
 
   // La file de lecture est vide : Iris a fini ce qu'elle avait à dire.
   ipcMain.on('parole-finie', () => {
+    // La question de l'agent vient d'être dite : on écoute la réponse.
+    if (question?.audioEnvoye) {
+      void ecouter('question')
+      return
+    }
     // La question de confirmation vient d'être dite : on écoute la réponse.
     if (confirmation?.audioEnvoye) {
       void ecouter('confirmation')

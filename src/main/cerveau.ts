@@ -11,6 +11,7 @@ import {
   type Tache
 } from '@shared/conversation'
 import { PERMISSIONS, type Reglages } from '@shared/reglages'
+import type { Garde } from './garde'
 import type { Modele } from './routeur'
 
 /**
@@ -222,11 +223,11 @@ const reserve = new Map<Modele, Processus>()
 const EN_RESERVE: Modele[] = ['haiku', 'sonnet']
 
 /** Le garde des actions irréversibles, s'il a pu démarrer (voir `garde.ts`). */
-let garde: { port: number; jeton: string; commande: string } | null = null
+let garde: Garde | null = null
 let noter: (ligne: string) => void = () => {}
 
 export function brancher(options: {
-  garde: { port: number; jeton: string; commande: string } | null
+  garde: Garde | null
   journal: (ligne: string) => void
 }): void {
   garde = options.garde
@@ -250,12 +251,12 @@ export function brancherMemoire(lire: () => Memoire): void {
  * l'irréversible sans confirmation : on retombe alors sur l'écriture seule.
  */
 function modeEffectif(reglages: Reglages): string {
-  if (reglages.permission === 'total' && !garde) return PERMISSIONS.edition.mode
+  if (reglages.permission === 'total' && !garde?.hook) return PERMISSIONS.edition.mode
   return PERMISSIONS[reglages.permission].mode
 }
 
 function empreinte(reglages: Reglages): string {
-  return [reglages.dossier, modeEffectif(reglages), garde?.port ?? ''].join('|')
+  return [reglages.dossier, modeEffectif(reglages), garde?.port ?? '', garde?.hook ?? ''].join('|')
 }
 
 /**
@@ -314,7 +315,9 @@ function lancer(modele: Modele, reglages: Reglages, reprendre?: string): Process
     // En mode non interactif, personne ne répondrait à la demande
     // d'autorisation : la connexion d'un compte passerait à la trappe.
     '--allowedTools',
-    process.platform === 'win32' ? 'Bash(iris-connecter.cmd:*)' : 'Bash(iris-connecter:*)',
+    ...(process.platform === 'win32'
+      ? ['Bash(iris-connecter.cmd:*)', 'Bash(iris-demander.cmd:*)']
+      : ['Bash(iris-connecter:*)', 'Bash(iris-demander:*)']),
     // Option à valeurs multiples : elle doit être suivie d'une autre option,
     // sinon elle avalerait ce qui vient après comme un dossier de plus.
     '--add-dir',
@@ -334,7 +337,7 @@ function lancer(modele: Modele, reglages: Reglages, reprendre?: string): Process
 
   // Le garde intercepte les outils qui peuvent détruire ou publier, avant
   // qu'ils ne s'exécutent, et fait confirmer Lucas à la voix.
-  if (garde && reglages.permission === 'total') {
+  if (garde?.hook && reglages.permission === 'total') {
     args.push(
       '--settings',
       JSON.stringify({
@@ -342,7 +345,7 @@ function lancer(modele: Modele, reglages: Reglages, reprendre?: string): Process
           PreToolUse: [
             {
               matcher: 'Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit',
-              hooks: [{ type: 'command', command: garde.commande, timeout: 120 }]
+              hooks: [{ type: 'command', command: garde.hook, timeout: 120 }]
             }
           ]
         }

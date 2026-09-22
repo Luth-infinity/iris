@@ -82,6 +82,12 @@ export default function Overlay(): JSX.Element {
   const [enSuite, setEnSuite] = useState(false)
   /** Phrase du démarrage (« Dis « Iris »… »), effacée dès le premier échange. */
   const [annonce, setAnnonce] = useState<string | null>(null)
+  /**
+   * Ce qu'Iris demande et pour quoi elle attend une réponse : une précision
+   * qui lui manque en plein travail, ou une action à confirmer. Tant que
+   * c'est posé, la barre affiche cette phrase et rien d'autre.
+   */
+  const [demande, setDemande] = useState<string | null>(null)
   const [secondes, setSecondes] = useState(0)
   const [niveau, setNiveau] = useState(0)
   /** Le spectre à suivre : le micro pendant qu'on parle, Iris quand elle répond. */
@@ -358,6 +364,7 @@ export default function Overlay(): JSX.Element {
       }),
       window.api.surFormePart(() => setSortie(true)),
       window.api.surAnnonce(setAnnonce),
+      window.api.surConfirmation(setDemande),
       window.api.surDemarrerEcoute((reglages, mode) => void demarrer(reglages, mode !== 'demande')),
       window.api.surArreterEcoute(arreter),
       // Le carillon du lancement : volontairement à part de la file de la
@@ -569,6 +576,18 @@ export default function Overlay(): JSX.Element {
               {souci.detail && (
                 <p className="line-clamp-2 text-[11px] text-shell-muted">{souci.detail}</p>
               )}
+            </>
+          ) : demande ? (
+            <>
+              {/* La question posée reste à l'écran pendant qu'elle la dit et
+                  pendant qu'elle écoute : c'est le seul moment où l'on répond
+                  à Iris, et la perdre de vue, c'est ne plus savoir quoi dire. */}
+              <p className="line-clamp-3 text-[15px] leading-relaxed text-shell-foreground">
+                {demande}
+              </p>
+              <p className="text-[11px] text-shell-muted">
+                {etat === 'ecoute' ? 'Je t’écoute' : 'Un instant…'}
+              </p>
             </>
           ) : etat === 'ecoute' ? (
             <>

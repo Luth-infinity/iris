@@ -33,7 +33,7 @@ const api = {
   /** Le mode dit ce qu'on recueille : une demande, une suite, un oui ou un non. */
   surDemarrerEcoute: (cb: (r: Reglages, mode: ModeEcoute) => void) => {
     const handler = (_e: unknown, r: Reglages, mode?: string): void =>
-      cb(r, mode === 'suite' || mode === 'confirmation' ? mode : 'demande')
+      cb(r, mode === 'suite' || mode === 'confirmation' || mode === 'question' ? mode : 'demande')
     ipcRenderer.on('demarrer-ecoute', handler)
     return () => ipcRenderer.removeListener('demarrer-ecoute', handler)
   },

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pose une question à voix haute et rend la réponse sur la sortie standard.
+#
+# L'agent s'arrête au milieu de son travail, Iris dit la question, écoute, et
+# la réponse revient ici. Sans le serveur d'Iris (port et jeton passés dans
+# l'environnement), la sortie est vide et l'agent tranche lui-même.
+question="$*"
+[ -z "$question" ] && { echo 'Usage : iris-demander "ta question"'; exit 1; }
+[ -z "$IRIS_GARDE_PORT" ] && exit 0
+
+corps=$(printf '%s' "$question" | sed 's/\/\\/g; s/"/\\"/g')
+curl -s --max-time 120 -X POST "http://127.0.0.1:$IRIS_GARDE_PORT/demander" \
+  -H "x-iris-jeton: $IRIS_GARDE_JETON" -H 'Content-Type: application/json' \
+  -d "{\"question\":\"$corps\"}" |
+  sed -n 's/.*"reponse"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p'
