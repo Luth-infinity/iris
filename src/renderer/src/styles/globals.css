@@ -8,9 +8,13 @@
  * clair, quasi noire en sombre, avec une pointe de bleu (teinte 265) qui se
  * devine sans assombrir.
  *
- * S'y ajoute `iris`, la seule couleur propre à cette application : un violet
- * bleuté réservé aux états vivants (écoute, réflexion, parole). Aucune surface
- * ne la porte, sinon l'application entière deviendrait violette.
+ * S'y ajoute `iris`, la seule couleur propre à cette application, réservée aux
+ * états vivants (écoute, réflexion, parole). Aucune surface ne la porte, sinon
+ * l'application entière se teinterait.
+ *
+ * Sa teinte est réglable : `--teinte` et `--chroma` sont posés sur <html> par
+ * `lib/theme.ts` d'après les réglages, et toutes les nuances en découlent. Une
+ * seule définition par thème, donc, plutôt qu'une palette par gamme.
  *
  * Les variables ne portent que les composantes, pas la fonction : Tailwind y
  * injecte `<alpha-value>` et les modificateurs d'opacité (`bg-iris/10`)
@@ -39,9 +43,11 @@
     --input: 0.922 0 0;
     --ring: 0.708 0 0;
 
-    --iris: 0.54 0.19 276;
+    --teinte: 276;
+    --chroma: 1;
+    --iris: 0.54 calc(0.19 * var(--chroma)) var(--teinte);
     --iris-foreground: 0.99 0 0;
-    --iris-soft: 0.94 0.035 276;
+    --iris-soft: 0.94 calc(0.035 * var(--chroma)) var(--teinte);
 
     --shell: 0.991 0.001 265;
     --shell-raised: 1 0 0;
@@ -70,9 +76,9 @@
     --input: 0.35 0.006 265;
     --ring: 0.556 0 0;
 
-    --iris: 0.72 0.16 276;
-    --iris-foreground: 0.18 0.02 276;
-    --iris-soft: 0.33 0.075 276;
+    --iris: 0.72 calc(0.16 * var(--chroma)) var(--teinte);
+    --iris-foreground: 0.18 calc(0.02 * var(--chroma)) var(--teinte);
+    --iris-soft: 0.33 calc(0.075 * var(--chroma)) var(--teinte);
 
     --shell: 0.185 0.004 265;
     --shell-raised: 0.23 0.005 265;

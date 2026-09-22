@@ -360,6 +360,16 @@ export default function Overlay(): JSX.Element {
       window.api.surAnnonce(setAnnonce),
       window.api.surDemarrerEcoute((reglages, mode) => void demarrer(reglages, mode !== 'demande')),
       window.api.surArreterEcoute(arreter),
+      // Le carillon du lancement : volontairement à part de la file de la
+      // voix, pour qu'il ne retarde pas une réponse et ne soit pas coupé avec
+      // elle.
+      window.api.surSon((base64) => {
+        const son = new Audio(`data:audio/wav;base64,${base64}`)
+        son.volume = 0.45
+        void son.play().catch(() => {
+          // Sortie audio occupée ou absente : le démarrage reste silencieux.
+        })
+      }),
       window.api.surAudio((base64) => {
         lectureRef.current?.ajouter(base64)
         // L'anneau passe sur la voix d'Iris : le nœud est le même d'une phrase

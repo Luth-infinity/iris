@@ -23,6 +23,38 @@ export const TONS: Record<Ton, { label: string; hauteur: string }> = {
   pose: { label: 'Posé', hauteur: '-3%' }
 }
 
+/**
+ * Les gammes de couleur.
+ *
+ * Une seule teinte change dans toute l'application : la couleur des états
+ * vivants (l'anneau, l'orbe, les accents). Les surfaces restent neutres, sinon
+ * l'application entière se teinte. `chroma` corrige la saturation là où une
+ * teinte paraîtrait fade ou criarde à intensité égale.
+ */
+export type Couleur = 'iris' | 'ocean' | 'menthe' | 'ambre' | 'rose' | 'argent'
+
+export const COULEURS: Record<Couleur, { label: string; teinte: number; chroma: number }> = {
+  iris: { label: 'Iris', teinte: 276, chroma: 1 },
+  ocean: { label: 'Océan', teinte: 243, chroma: 1 },
+  menthe: { label: 'Menthe', teinte: 164, chroma: 0.95 },
+  ambre: { label: 'Ambre', teinte: 74, chroma: 1.05 },
+  rose: { label: 'Rose', teinte: 352, chroma: 1 },
+  argent: { label: 'Argent', teinte: 265, chroma: 0.14 }
+}
+
+/**
+ * Le son du démarrage : trois carillons de synthèse (voir `son/generer.mjs`),
+ * ou rien. Il ne se joue qu'au lancement, jamais pendant le travail.
+ */
+export type SonDemarrage = 'iris' | 'souffle' | 'cristal' | 'aucun'
+
+export const SONS: Record<SonDemarrage, string> = {
+  iris: 'Iris — trois notes qui montent',
+  souffle: 'Souffle — deux notes tenues',
+  cristal: 'Cristal — quatre notes brèves',
+  aucun: 'Aucun'
+}
+
 /** Ce que l'agent est autorisé à faire sans que personne ne puisse répondre. */
 export type Permission = 'lecture' | 'edition' | 'total'
 
@@ -59,6 +91,10 @@ export type Reglages = {
   permission: Permission
   /** Le prénom qu'Iris donne à la personne qui lui parle. '' : elle n'en dit pas. */
   prenom: string
+  /** La gamme de couleur des états vivants. */
+  couleur: Couleur
+  /** Le carillon joué au lancement. */
+  sonDemarrage: SonDemarrage
 }
 
 /**
@@ -74,8 +110,11 @@ export type Reglages = {
  * 4 : le prénom devient un réglage. Il était écrit en dur (« Lucas ») avant
  * la première version publiée : les seuls fichiers antérieurs sont les siens,
  * ils le gardent.
+ *
+ * 5 : la gamme de couleur et le son de démarrage s'ajoutent. Rien à migrer,
+ * leurs défauts sont ceux d'avant : le violet, et le carillon d'Iris.
  */
-const VERSION = 4
+const VERSION = 5
 
 export const REGLAGES_DEFAUT: Reglages = {
   version: VERSION,
@@ -99,7 +138,9 @@ export const REGLAGES_DEFAUT: Reglages = {
   modele: 'auto',
   dossier: '',
   permission: 'edition',
-  prenom: ''
+  prenom: '',
+  couleur: 'iris',
+  sonDemarrage: 'iris'
 }
 
 /**
@@ -223,6 +264,14 @@ export function normalizeReglages(brut: unknown): Reglages {
         ? r.prenom.trim().slice(0, 40)
         : brut && version < 4
           ? 'Lucas'
-          : ''
+          : '',
+    couleur:
+      typeof r.couleur === 'string' && r.couleur in COULEURS
+        ? (r.couleur as Couleur)
+        : REGLAGES_DEFAUT.couleur,
+    sonDemarrage:
+      typeof r.sonDemarrage === 'string' && r.sonDemarrage in SONS
+        ? (r.sonDemarrage as SonDemarrage)
+        : REGLAGES_DEFAUT.sonDemarrage
   }
 }

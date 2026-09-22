@@ -47,6 +47,8 @@ const api = {
   surSynthesesFinies: (cb: () => void) => ecouter('syntheses-finies', cb),
   /** Phrase affichée au repos, au démarrage : comment appeler Iris. */
   surAnnonce: (cb: (texte: string) => void) => recevoir<string>('annonce', cb),
+  /** Le carillon du lancement, en base64 : hors de la file de la voix. */
+  surSon: (cb: (base64: string) => void) => recevoir<string>('son', cb),
   /** Un MP3 en base64, à jouer dans l'ordre d'arrivée. */
   surAudio: (cb: (base64: string) => void) => recevoir<string>('audio', cb),
 
@@ -97,6 +99,8 @@ const api = {
 
   /** Synthétise une phrase d'exemple avec les réglages en cours d'édition. */
   testerVoix: (r: Reglages): Promise<string> => ipcRenderer.invoke('tester-voix', r),
+  /** Un carillon en base64, pour l'écouter avant de le choisir. */
+  lireSon: (nom: string): Promise<string> => ipcRenderer.invoke('lire-son', nom),
   choisirDossier: (): Promise<string | null> => ipcRenderer.invoke('choisir-dossier'),
 
   // ─── Écran de bienvenue ───────────────────────────────────────────────────

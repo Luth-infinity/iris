@@ -687,6 +687,23 @@ async function montrerOverlay(): Promise<void> {
  * La toute première fois, elle se présente et reste un peu plus longtemps ;
  * ensuite, un rappel bref suffit à dire qu'elle est lancée.
  */
+/**
+ * Le carillon du lancement.
+ *
+ * Il passe par l'overlay, seule fenêtre à avoir une sortie audio, et par un
+ * canal à part de la voix : il ne doit ni entrer dans la file de lecture, ni
+ * être coupé par un « tais-toi ». Synthétisé dans `son/generer.mjs`.
+ */
+function jouerSonDemarrage(): void {
+  if (reglages.sonDemarrage === 'aucun') return
+  try {
+    const octets = fs.readFileSync(join(assetsDir, 'son', `${reglages.sonDemarrage}.wav`))
+    overlay?.webContents.send('son', octets.toString('base64'))
+  } catch {
+    // Fichier absent : le démarrage se fait en silence, sans rien signaler.
+  }
+}
+
 async function annoncer(): Promise<void> {
   noter(`démarrage ${app.getVersion()}, réveil au mot ${reglages.veille ? 'actif' : 'coupé'}`)
   const appel = reglages.veille ? 'Dis « Iris »' : `${reglages.raccourci.replace(/\+/g, ' + ')}`
@@ -694,6 +711,7 @@ async function annoncer(): Promise<void> {
     ? `${appel} quand tu as besoin de moi.`
     : `${appel}, je suis là.`
   await montrerOverlay()
+  jouerSonDemarrage()
   overlay?.webContents.send('annonce', texte)
   replierOverlay(premierLancement ? 5000 : 2600)
 }
@@ -1428,6 +1446,16 @@ app.whenReady().then(() => {
       return synthetiser(`Bonjour${r.prenom ? ` ${r.prenom}` : ''}, c'est Iris. Je t'écoute.`, r)
     })()
     return mp3.toString('base64')
+  })
+
+  /** Le carillon demandé, pour l'écouter dans les paramètres. */
+  ipcMain.handle('lire-son', (_, nom: unknown) => {
+    if (typeof nom !== 'string' || !/^[a-z]+$/.test(nom) || nom === 'aucun') return ''
+    try {
+      return fs.readFileSync(join(assetsDir, 'son', `${nom}.wav`)).toString('base64')
+    } catch {
+      return ''
+    }
   })
 
   ipcMain.handle('choisir-dossier', async () => {

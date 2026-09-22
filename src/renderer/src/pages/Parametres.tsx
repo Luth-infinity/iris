@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, FolderOpen, RefreshCw, Volume2 } from 'lucide-react'
 import {
+  COULEURS,
   FOURNISSEURS,
   LANGUES,
   MODELES,
   PERMISSIONS,
+  SONS,
   TONS,
   VOIX,
+  type Couleur,
   type Permission,
-  type Reglages
+  type Reglages,
+  type SonDemarrage
 } from '@shared/reglages'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -16,7 +20,7 @@ import { Label } from '@renderer/components/ui/label'
 import { Select } from '@renderer/components/ui/select'
 import { Separator } from '@renderer/components/ui/separator'
 import { Switch } from '@renderer/components/ui/switch'
-import { useSyncedTheme } from '@renderer/lib/theme'
+import { appliquerCouleur, useSyncedTheme } from '@renderer/lib/theme'
 import { cn } from '@renderer/lib/utils'
 
 /** Débits proposés, en pourcentage relatif tel que l'attend le service. */
@@ -318,6 +322,73 @@ export default function Parametres(): JSX.Element {
             Voix de la lecture à voix haute de Microsoft Edge : gratuite et sans clé. Les timbres
             « multilingues » prononcent correctement les mots anglais dans une phrase française.
           </p>
+        </section>
+
+        <Separator />
+
+        <section className="space-y-3">
+          <h2 className="font-medium">Apparence</h2>
+
+          <Ligne
+            titre="Couleur"
+            aide="Elle ne colore que ce qui est vivant : l’anneau, l’orbe, les accents."
+          >
+            {/* Des pastilles plutôt qu'une liste déroulante : on choisit une
+                couleur en la voyant, pas en lisant son nom. */}
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(COULEURS).map(([cle, gamme]) => (
+                <button
+                  key={cle}
+                  title={gamme.label}
+                  onClick={() => {
+                    // Posée tout de suite : on juge la couleur sur l'écran,
+                    // pas après avoir enregistré.
+                    appliquerCouleur(cle as Couleur)
+                    modifier({ couleur: cle as Couleur })
+                  }}
+                  className={cn(
+                    'h-7 w-7 rounded-full ring-offset-2 ring-offset-shell transition',
+                    reglages.couleur === cle ? 'ring-2 ring-shell-foreground' : 'hover:scale-110'
+                  )}
+                  style={{
+                    background: `oklch(0.62 ${0.18 * gamme.chroma} ${gamme.teinte})`
+                  }}
+                />
+              ))}
+            </div>
+          </Ligne>
+
+          <Ligne titre="Son de démarrage" aide="Il ne se joue qu’au lancement d’Iris.">
+            <div className="flex gap-2">
+              <Select
+                value={reglages.sonDemarrage}
+                onChange={(e) => modifier({ sonDemarrage: e.target.value as SonDemarrage })}
+              >
+                {Object.entries(SONS).map(([cle, label]) => (
+                  <option key={cle} value={cle}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                title="Écouter"
+                disabled={reglages.sonDemarrage === 'aucun'}
+                onClick={async () => {
+                  const base64 = await window.api.lireSon(reglages.sonDemarrage)
+                  if (!base64) return
+                  audioRef.current?.pause()
+                  const audio = new Audio(`data:audio/wav;base64,${base64}`)
+                  audio.volume = 0.45
+                  audioRef.current = audio
+                  await audio.play()
+                }}
+              >
+                <Volume2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </Ligne>
         </section>
 
         <Separator />

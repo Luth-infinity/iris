@@ -198,6 +198,23 @@ niveaux :
   (synthèse coupée net, vérifié). Seules la hauteur et le débit passent :
   réglage `ton` (Enjoué +6 %, par défaut ; Naturel ; Posé −3 %).
 
+## La couleur et le son
+
+**La couleur** ne tient qu'à deux variables posées sur `<html>` par
+`lib/theme.ts` d'après les réglages : `--teinte` et `--chroma`. Toutes les
+nuances d'`iris` en découlent dans `styles/globals.css` (une définition par
+thème, pas une palette par gamme), et le canvas de l'anneau lit ses couleurs
+sur des sondes portant `text-iris` : il suit sans rien savoir. Six gammes dans
+`COULEURS` (`shared/reglages.ts`). Seuls les états vivants sont colorés ; une
+surface teintée rendrait toute l'application colorée. L'icône, elle, reste
+violette : c'est la marque.
+
+**Le son du démarrage** est synthétisé, pas emprunté : `son/generer.mjs` écrit
+trois carillons dans `assets/son/` (des cloches, c'est-à-dire une fondamentale
+et des partiels qui s'éteignent plus vite qu'elle, plus une réverbération à
+quatre échos). Il part à l'overlay par un canal à part de la voix (`son`) :
+il ne doit ni entrer dans la file de lecture, ni être coupé avec elle.
+
 ## Mémoire d'Iris
 
 Dans `%APPDATA%/iris/memoire/`, trois choses qui ne se relisent pas au même
