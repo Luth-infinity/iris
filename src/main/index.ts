@@ -795,6 +795,8 @@ function replierOverlay(delai: number): void {
  */
 /** Numéro du tour en cours : un tour dont le numéro a changé est abandonné. */
 let tourCourant = 0
+/** Tour pour lequel l'accès a déjà été demandé : on ne le redemande pas. */
+let refusDemande = -1
 
 /**
  * Abandonne le tour en cours : agent, voix, micro et lecture.
@@ -1422,7 +1424,19 @@ async function demarrerCerveau(): Promise<void> {
         ? 'garde indisponible (Node introuvable ?) : « Tout » retombe sur l’écriture seule'
         : 'serveur local indisponible : ni garde, ni questions'
   )
-  cerveau.brancher({ garde, journal: noter })
+  cerveau.brancher({
+    garde,
+    journal: noter,
+    // Un outil refusé : plutôt que de laisser l'agent répondre « je ne peux
+    // pas », Iris demande l'accès tout de suite. Une seule fois par tour :
+    // deux refus d'affilée, c'est le même mur.
+    surRefus: (detail) => {
+      if (!tourEnCours || refusDemande === tourCourant) return
+      refusDemande = tourCourant
+      noter(`outil refusé : ${detail.slice(0, 120)}`)
+      void demanderAutorisation('Il me manque un accès pour faire ça')
+    }
+  })
   cerveau.preparer(reglages)
 }
 

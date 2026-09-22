@@ -208,13 +208,16 @@ export const PERMISSIONS: Record<Permission, { label: string; aide: string; mode
     mode: 'default'
   },
   edition: {
-    label: 'Écriture dans le dossier de travail',
-    aide: 'Elle crée et modifie des fichiers, mais les commandes lui sont refusées.',
+    label: 'Écriture seulement',
+    aide: 'Elle crée et modifie des fichiers, mais ne peut rien lancer : installer une application ou changer un réglage du PC lui sera refusé.',
     mode: 'acceptEdits'
   },
   total: {
-    label: 'Tout, sans confirmation',
-    aide: "Commandes comprises. Personne ne peut répondre à une demande d'autorisation quand Iris travaille : c'est ce mode qui lui permet d'installer, de construire et de lancer.",
+    // L'ancien libellé disait « sans confirmation », ce qui n'est plus vrai
+    // depuis le garde : supprimer, publier ou envoyer se font toujours
+    // confirmer à la voix.
+    label: 'Tout faire sur cet ordinateur',
+    aide: "Commandes comprises : installer, régler, lancer. Ce qui ne se rattrape pas — supprimer, publier, envoyer — vous est toujours demandé avant.",
     mode: 'bypassPermissions'
   }
 }

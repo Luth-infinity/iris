@@ -226,12 +226,18 @@ const EN_RESERVE: Modele[] = ['haiku', 'sonnet']
 let garde: Garde | null = null
 let noter: (ligne: string) => void = () => {}
 
+/** Prévenu quand un outil est refusé faute de droits. */
+let surRefusDeDroits: (detail: string) => void = () => {}
+
 export function brancher(options: {
   garde: Garde | null
   journal: (ligne: string) => void
+  /** Un outil vient d'être refusé faute de droits. */
+  surRefus?: (detail: string) => void
 }): void {
   garde = options.garde
   noter = options.journal
+  if (options.surRefus) surRefusDeDroits = options.surRefus
 }
 
 /** Chemin et contenu de la mémoire d'Iris, relus à chaque lancement. */
@@ -245,6 +251,17 @@ let memoire: () => Memoire = () => ({
 export function brancherMemoire(lire: () => Memoire): void {
   memoire = lire
 }
+
+/**
+ * Ce que Claude Code répond quand il n'a pas le droit d'agir.
+ *
+ * L'agent s'arrête alors poliment au lieu de faire ce qu'on lui demande, et
+ * il ne reste qu'une réponse évasive : c'est la friction n°1 de l'usage
+ * quotidien. On la repère pour proposer d'ouvrir l'accès, sans que personne
+ * ait à deviner ce qui s'est passé.
+ */
+const REFUS =
+  /permission (denied|to use)|requested permissions|n'a pas (l'|les )(autorisation|droits)|not allowed|haven't granted|refus(é|e) par|outside.*(allowed|permitted).*(directory|dir)|hors du dossier autoris/i
 
 /**
  * Le mode d'autorisation réellement appliqué. « Tout » sans garde, ce serait
@@ -601,12 +618,16 @@ export function demander(
       }
 
       // Les résultats d'outils reviennent dans un message « user » : c'est là
-      // que la création d'une tâche révèle son numéro.
+      // que la création d'une tâche révèle son numéro, et qu'un refus de
+      // droits se voit.
       if (ev.type === 'user') {
         const message = (ev.message ?? {}) as Record<string, unknown>
         const blocs = Array.isArray(message.content) ? message.content : []
         for (const bloc of blocs as Record<string, unknown>[]) {
           if (bloc.type !== 'tool_result') continue
+          const texteResultat =
+            typeof bloc.content === 'string' ? bloc.content : JSON.stringify(bloc.content ?? '')
+          if (REFUS.test(texteResultat)) surRefusDeDroits(texteResultat.slice(0, 200))
           const creation = creations.get(String(bloc.tool_use_id))
           if (!creation) continue
           creations.delete(String(bloc.tool_use_id))

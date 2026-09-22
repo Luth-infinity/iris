@@ -337,6 +337,16 @@ Le bouton existe parce qu'on n'a pas toujours envie de dire « oui » à voix
 haute, et parce qu'une autorisation mérite un geste. Les actions irréversibles
 restent soumises au garde, même une fois l'accès donné.
 
+**Elle n'attend plus que l'agent y pense** : `cerveau.ts` repère un refus de
+droits dans les résultats d'outils (`REFUS`) et prévient le main, qui demande
+l'accès une fois par tour. C'était la friction n°1 de l'usage quotidien —
+« elle est bloquée, elle ne peut rien faire » — et l'agent, lui, se contentait
+de répondre qu'il ne pouvait pas.
+
+Le libellé du mode disait « Tout, sans confirmation » : faux depuis le garde.
+Il dit maintenant « Tout faire sur cet ordinateur », et l'accès étendu a son
+propre interrupteur dans les paramètres.
+
 ## Garde de l'irréversible — inachevé
 
 `garde.ts` (serveur local à jeton) + `assets/garde.cjs` (hook `PreToolUse`) +

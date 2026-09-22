@@ -440,6 +440,17 @@ export default function Parametres(): JSX.Element {
             </div>
           </Ligne>
 
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label>Accès à tout votre dossier utilisateur</Label>
+              <p className="text-[11px] leading-snug text-shell-muted">
+                Au-delà du dossier de travail et des dossiers usuels. Jamais Windows ni les
+                programmes installés.
+              </p>
+            </div>
+            <Switch checked={reglages.etendu} onCheckedChange={(etendu) => modifier({ etendu })} />
+          </div>
+
           <Ligne titre="Autorisations" aide={PERMISSIONS[reglages.permission].aide}>
             <Select
               value={reglages.permission}
