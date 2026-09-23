@@ -566,6 +566,26 @@ se cachent au lieu de se fermer retiennent la sortie.
 - `LSUIElement` : pas d'icône dans le Dock, Iris vit dans la barre des menus.
 - L'app n'est pas signée : première ouverture par clic droit, puis Ouvrir.
 
+## Quand ça casse chez quelqu'un d'autre
+
+Iris a été essayée par d'autres (22/09) et le seul retour possible était « ça
+marche pas ». Depuis :
+
+- **Menu de l'icône → « Copier un diagnostic »** : version, système, Claude
+  Code (installé, version, connecté), clé renseignée ou non, voix, veille,
+  autorisations, garde, et les 25 dernières lignes du journal. Aucune clé,
+  aucun chemin personnel : ça s'envoie tel quel.
+- **« Pas connecté » devient un bouton** : l'erreur d'authentification propose
+  « Se connecter » et ouvre le terminal de connexion. C'est le premier mur
+  d'une installation neuve, et une commande à recopier en arrête plus d'un.
+- **`etatClaude()` ne se fie plus au seul `claude auth status`** : les
+  versions qui ne connaissent pas cette commande répondaient une aide
+  générale, d'où un « connexion indéterminée » incompréhensible. On regarde
+  alors `~/.claude/.credentials.json` (sur macOS, l'absence ne prouve rien :
+  le trousseau existe).
+- **Clé de transcription manquante** : le guide s'ouvre au lieu d'afficher une
+  erreur sans suite.
+
 ## Le guide de démarrage
 
 `pages/Bienvenue.tsx`, une quatrième fenêtre, ouverte au premier lancement à la

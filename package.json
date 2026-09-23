@@ -1,6 +1,6 @@
 {
   "name": "iris",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Parlez, Iris agit sur votre machine",
   "author": "Luth",
   "main": "out/main/index.js",

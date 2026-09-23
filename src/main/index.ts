@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   globalShortcut,
   ipcMain,
@@ -180,8 +181,8 @@ let confirmation: {
  */
 let question: {
   texte: string
-  /** `autorisation` attend un oui ou un non, et un bouton s'affiche. */
-  genre: 'precision' | 'autorisation'
+  /** `autorisation` et `connexion` attendent un oui ou un non, avec un bouton. */
+  genre: 'precision' | 'autorisation' | 'connexion'
   audioEnvoye: boolean
   resoudre: (reponse: string) => void
 } | null = null
@@ -593,6 +594,51 @@ function entreeMiseAJour(): Electron.MenuItemConstructorOptions[] {
   ]
 }
 
+/**
+ * De quoi comprendre une panne sur une machine qu'on n'a pas sous la main.
+ *
+ * Iris a été essayée par d'autres, et le seul retour possible était « ça
+ * marche pas ». Aucune clé, aucun chemin personnel : ce qu'on copie ici peut
+ * s'envoyer tel quel.
+ */
+async function diagnostic(): Promise<string> {
+  const claude = await cerveau.etatClaude()
+  const lignes = [
+    `Iris ${app.getVersion()} — ${process.platform} ${process.getSystemVersion()}`,
+    `Claude Code : ${claude.installe ? `installé (${claude.version})` : 'introuvable'}, ${
+      claude.connecte === true
+        ? 'connecté'
+        : claude.connecte === false
+          ? 'PAS connecté'
+          : 'connexion indéterminée'
+    }`,
+    `Transcription : ${reglages.fournisseur}, clé ${reglages.cleApi ? 'renseignée' : 'MANQUANTE'}`,
+    `Voix : ${reglages.parler ? reglages.voix : 'coupée'}`,
+    `Réveil au mot : ${reglages.veille ? 'actif' : 'coupé'} · micro : ${
+      reglages.peripherique ? 'choisi' : 'celui du système'
+    }`,
+    `Autorisations : ${reglages.permission}${reglages.etendu ? ' + dossier utilisateur' : ''}`,
+    `Garde : ${gardeActif ? 'prêt' : 'indisponible'}`,
+    '',
+    'Dernières lignes du journal :',
+    ...journalRecent(25)
+  ]
+  return lignes.join('\n')
+}
+
+/** Les dernières lignes du journal, pour le diagnostic. */
+function journalRecent(combien: number): string[] {
+  try {
+    return fs
+      .readFileSync(cheminJournal, 'utf-8')
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .slice(-combien)
+  } catch {
+    return ['(journal illisible)']
+  }
+}
+
 function menuTray(): Menu {
   const maj = entreeMiseAJour()
   return Menu.buildFromTemplate([
@@ -606,6 +652,15 @@ function menuTray(): Menu {
     // Rangé ici et nulle part ailleurs : c'est un journal, pas une façon de
     // se servir d'Iris.
     { label: 'Historique', click: ouvrirConversation },
+    {
+      label: 'Copier un diagnostic',
+      click: () => {
+        void diagnostic().then((texte) => {
+          clipboard.writeText(texte)
+          noter('diagnostic copié')
+        })
+      }
+    },
     { label: 'Guide de démarrage', click: ouvrirBienvenue },
     { label: 'Paramètres', click: ouvrirParametres },
     { label: 'Quitter', click: quitter }
@@ -799,6 +854,8 @@ let tourCourant = 0
 let refusDemande = -1
 /** La demande en cours, pour la refaire telle quelle une fois l'accès donné. */
 let questionCourante = ''
+/** Le garde tourne-t-il ? Utile au diagnostic, et lui seul débloque « Tout ». */
+let gardeActif = false
 
 /**
  * Abandonne le tour en cours : agent, voix, micro et lecture.
@@ -951,6 +1008,13 @@ async function poser(question: string): Promise<void> {
   if (tour.erreur) {
     diseur?.taire()
     diseur = null
+    // Personne n'est connecté : plutôt qu'un message à déchiffrer, on propose
+    // d'ouvrir la connexion. C'est la première chose que rencontre quelqu'un
+    // qui vient d'installer Iris, et c'est là qu'on le perd.
+    if (cerveau.estErreurDeCompte(tour.erreur)) {
+      proposerConnexion()
+      return
+    }
     poserEtat('erreur')
     // Assez long pour lire le message : l'overlay n'a pas le focus et ne
     // répond à aucune touche.
@@ -1116,7 +1180,7 @@ function demanderConfirmation(action: string): Promise<boolean> {
  */
 function demanderPrecision(
   texte: string,
-  genre: 'precision' | 'autorisation' = 'precision'
+  genre: 'precision' | 'autorisation' | 'connexion' = 'precision'
 ): Promise<string> {
   noter(`question posée (${genre}) : ${texte.slice(0, 80)}`)
   // Une seule à la fois : un agent qui en poserait deux d'affilée n'attend pas
@@ -1195,6 +1259,23 @@ async function demanderAutorisation(raison: string): Promise<boolean> {
   }
   accorderTout()
   return true
+}
+
+/**
+ * Claude Code n'est pas connecté : Iris le dit, et propose de s'en occuper.
+ *
+ * Un bouton plutôt qu'une commande à recopier : la personne qui vient
+ * d'installer Iris n'a pas forcément ouvert un terminal de sa vie. C'est le
+ * tout premier mur, et il en arrête plus d'un.
+ */
+function proposerConnexion(): void {
+  void demanderPrecision(
+    'Claude Code n’est pas connecté à ton compte. Je t’ouvre la connexion ?',
+    'connexion'
+  ).then((dit) => {
+    if (!dit || !estOui(dit)) return
+    cerveau.preparerClaude('connexion')
+  })
 }
 
 /**
@@ -1433,7 +1514,7 @@ async function demarrerCerveau(): Promise<void> {
   }
   cerveau.brancherMemoire(lireMemoire)
 
-  const garde = await demarrerGarde(join(assetsDir, 'garde.cjs'), {
+  const garde: Awaited<ReturnType<typeof demarrerGarde>> = await demarrerGarde(join(assetsDir, 'garde.cjs'), {
     confirmer: demanderConfirmation,
     demander: (texte) => demanderPrecision(texte),
     autoriser: demanderAutorisation
@@ -1445,6 +1526,7 @@ async function demarrerCerveau(): Promise<void> {
         ? 'garde indisponible (Node introuvable ?) : « Tout » retombe sur l’écriture seule'
         : 'serveur local indisponible : ni garde, ni questions'
   )
+  gardeActif = !!garde?.hook
   cerveau.brancher({
     garde,
     journal: noter,
@@ -1576,6 +1658,12 @@ app.whenReady().then(() => {
   })
 
   ipcMain.on('ecoute-erreur', (_, message: string) => {
+    // Pas de clé de transcription : c'est un réglage manquant, pas une panne.
+    // On ouvre le guide, qui explique où la prendre et la vérifie.
+    if (/cl[ée]/i.test(message) && !reglages.cleApi) {
+      noter('clé de transcription manquante : guide ouvert')
+      ouvrirBienvenue()
+    }
     if (question) terminerQuestion('', 'micro en erreur')
     if (confirmation) terminerConfirmation(false, 'micro en erreur')
     poserEtat('erreur')
@@ -1764,9 +1852,9 @@ app.whenReady().then(() => {
     terminerConfirmation(oui, oui ? 'bouton oui' : 'bouton non')
   })
 
-  /** Le bouton de la barre : accorder ou refuser l'accès sans parler. */
+  /** Le bouton de la barre : accorder, refuser, ou lancer la connexion. */
   ipcMain.on('repondre-autorisation', (_, oui: boolean) => {
-    if (question?.genre !== 'autorisation') return
+    if (question?.genre !== 'autorisation' && question?.genre !== 'connexion') return
     overlay?.webContents.send('taire')
     terminerQuestion(oui ? 'oui' : 'non', oui ? 'bouton oui' : 'bouton non')
   })
