@@ -287,12 +287,24 @@ export class Diseur {
     for (const phrase of phrases) this.enfiler(phrase)
   }
 
-  /** Prononce le fond du tampon : la réponse est finie. */
-  terminer(): void {
+  /**
+   * Prononce le fond du tampon sans rien clore.
+   *
+   * À appeler dès que l'agent cesse de parler pour agir : une phrase finie
+   * juste avant un outil n'a pas d'espace après son point, donc elle restait
+   * en attente, et la phrase suivante s'y collait — « …tes
+   * Téléchargements.C'est dans tes Téléchargements… », dit d'un seul souffle.
+   */
+  finirPhrase(): void {
     if (!this.vivant) return
     const reste = this.tampon.trim()
     this.tampon = ''
     if (reste) this.enfiler(reste)
+  }
+
+  /** Prononce le fond du tampon : la réponse est finie. */
+  terminer(): void {
+    this.finirPhrase()
   }
 
   /** Coupe : plus rien ne sera synthétisé ni rendu. */

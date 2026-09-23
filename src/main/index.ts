@@ -982,6 +982,9 @@ async function poser(question: string): Promise<void> {
       tour.texte += e.delta
       diseur?.pousser(e.delta)
     } else if (e.type === 'outil') {
+      // Elle s'arrête de parler pour agir : ce qui reste à dire se dit
+      // maintenant, sinon la phrase suivante viendra s'y coller.
+      diseur?.finirPhrase()
       tour.outils.push(e.outil)
     } else if (e.type === 'taches') {
       tour.taches = e.taches

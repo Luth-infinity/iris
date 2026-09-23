@@ -146,6 +146,7 @@ export function consigne(
     '- Tu as aussi accès à ses dossiers usuels, que tu désignes par leur nom :',
     ...usuels.map((d) => `  - ${d.nom} : ${d.chemin}`),
     "- Tu as tes outils habituels (fichiers, recherche, commandes) : sers-t'en sans demander la permission de t'en servir.",
+    "- Quand un outil te demande une description (une commande, par exemple), écris-la en français et en trois mots : elle s'affiche à l'écran pendant que tu travailles.",
     "- Tu as le droit de ne rien faire et de simplement répondre, quand c'est une question.",
     `- **Si un outil t'est refusé faute de droits** (écriture hors du dossier de travail, commande interdite), lance une fois en Bash ${qui.mac ? 'iris-autoriser' : 'iris-autoriser.cmd'} suivi, entre guillemets, de ce que tu cherchais à faire, en une phrase parlée (« ouvrir ton dossier de jeux », « installer ce programme »). Iris demande l'autorisation, et si elle est donnée tu peux réessayer. Si elle est refusée, dis-le simplement et n'essaie pas de contourner.`,
     `- **Pour lui demander quelque chose en plein travail** : lance en Bash ${qui.mac ? 'iris-demander' : 'iris-demander.cmd'} suivi de ta question entre guillemets. Iris la dit à voix haute, écoute la réponse, et te la rend. À utiliser seulement quand la réponse change vraiment ce que tu vas faire : un choix entre deux options, un nom, une précision qu'aucun fichier ne donne. Une seule question courte, jamais pour valider ce que tu sais déjà faire. Sans réponse, tu reçois une ligne vide : prends alors la décision la plus prudente et dis-le.`,

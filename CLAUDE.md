@@ -201,6 +201,20 @@ du moment. À la fin, « 3 tâches terminées ».
   dans le processus, pas dans la session.
 - Réglages changés : `invalider()` relance la réserve.
 
+## Deux défauts vus dans ses « dit : » (23/09)
+
+- **Elle demandait en anglais.** La phrase de confirmation reprenait la
+  `description` que l'agent écrit pour sa commande — et il l'écrit en anglais
+  (« Delete original Gemini images from Downloads »), au milieu d'une
+  conversation française. `garde.cjs` compose maintenant la phrase lui-même,
+  à partir du verbe et de la cible. La consigne demande en plus des
+  descriptions en français, pour les bulles à l'écran.
+- **Deux phrases collées, dites d'un souffle** (« …tes Téléchargements.C'est
+  dans tes Téléchargements… »). Une phrase qui finit juste avant un appel
+  d'outil n'a pas d'espace après son point : `decouper` ne la voyait donc pas
+  comme finie, elle restait en attente, et la suite s'y collait.
+  `Diseur.finirPhrase()` vide le tampon dès qu'un outil démarre.
+
 ## Entendre ce qu'elle dit vraiment
 
 Le texte prononcé n'est pas celui qui s'affiche (`pourLaVoix` passe entre les

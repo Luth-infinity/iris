@@ -92,10 +92,10 @@ function aConfirmer(outil, entree, cwd) {
     ) {
       return null
     }
-    // L'agent décrit presque toujours sa commande en français : c'est ce
-    // qu'Iris dira. À défaut, le verbe et la dernière cible visible.
-    const description = String(entree.description || '').trim()
-    if (description) return description
+    // La phrase est composée ici, en français. On reprenait la description
+    // écrite par l'agent, et elle arrive presque toujours en anglais : Iris
+    // demandait « Delete original Gemini images from Downloads », au milieu
+    // d'une conversation française.
     const cible = (commande.match(/["']?([A-Za-z]:[\\/][^"'\s;|&]+|[^\s"';|&]+\.[a-z0-9]{1,5})["']?\s*$/i) || [])[1]
     return cible ? `${danger.verbe} ${nomCourt(cible)}` : `${danger.verbe}, par une commande`
   }
