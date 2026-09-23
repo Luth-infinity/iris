@@ -14,7 +14,7 @@ import {
   transcrire,
   type Souci
 } from '@renderer/lib/micro'
-import { lireDemande } from '@renderer/lib/commandes'
+import { estCloture, lireDemande } from '@renderer/lib/commandes'
 import { useSyncedTheme } from '@renderer/lib/theme'
 import { cn } from '@renderer/lib/utils'
 // Type seul : Vosk embarque son WASM, soit près de six mégaoctets qui ne
@@ -232,6 +232,15 @@ export default function Overlay(): JSX.Element {
             if (ecouteRef.current !== ecoute) return
             const demande = lireDemande(brut)
             if (!demande) {
+              arreterTout()
+              window.api.ecouteAnnulee()
+              return
+            }
+            // « C'est parfait, merci » après une réponse : l'échange est fini.
+            // L'envoyer à l'agent lui faisait répondre un pouce levé, puis
+            // rouvrir le micro — il fallait parler encore pour en sortir.
+            if (suite && estCloture(demande)) {
+              window.api.noter(`clôture entendue : ${demande.slice(0, 40)}`)
               arreterTout()
               window.api.ecouteAnnulee()
               return

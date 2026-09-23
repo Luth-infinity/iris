@@ -150,6 +150,13 @@ mesurées dans `verif/` (`source=partage`, puis `window.iris_jouer('demande')`,
   L'identifiant enregistré ne désignait plus rien d'une session à l'autre, et
   la veille ne démarrait pas (`OverconstrainedError`).
 
+- **Un remerciement clôt l'échange** (`estCloture`). « C'est parfait, merci »
+  repartait à l'agent, qui répondait par un pouce levé et rouvrait le micro :
+  il fallait parler encore pour en sortir. La phrase est retenue côté overlay
+  quand elle ne contient que du contentement (un mot fort obligatoire, tout le
+  reste dans un vocabulaire de liaison) ; « parfait, maintenant ouvre-le »
+  reste une demande, et une question ne clôt jamais.
+
 ## Les bulles de tâches
 
 Ce qu'Iris fait se voit comme dans Claude Code : sa **liste de tâches**

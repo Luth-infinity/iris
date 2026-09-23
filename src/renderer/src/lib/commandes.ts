@@ -38,6 +38,84 @@ export const ANNULATIONS = [
   // Iris se refermait sans y répondre.
 ]
 
+/**
+ * Les mots d'un contentement : « c'est parfait, merci », « nickel », « ok
+ * super ». Dits après une réponse, ils closent l'échange — ce ne sont pas des
+ * demandes.
+ *
+ * Il faut qu'un **mot fort** y soit (on ne clôt pas sur un « oui » seul, qui
+ * accepte souvent une proposition), et que toute la phrase tienne dans ce
+ * vocabulaire : « parfait, maintenant ouvre-le » est une demande.
+ */
+const CONTENTEMENT_FORT = [
+  'merci',
+  'parfait',
+  'nickel',
+  'super',
+  'top',
+  'genial',
+  'geniale',
+  'cool',
+  'impeccable',
+  'impec',
+  'bravo',
+  'excellent',
+  'excellente',
+  'magnifique',
+  'niquel'
+]
+
+const CONTENTEMENT_LIANT = [
+  "c'est",
+  'cest',
+  'ca',
+  'c',
+  'est',
+  'tres',
+  'bien',
+  'beaucoup',
+  'ok',
+  'okay',
+  'oui',
+  'voila',
+  'joue',
+  'marche',
+  'roule',
+  'me',
+  'va',
+  'la',
+  'le',
+  'et',
+  'du',
+  'coup',
+  'alors',
+  'donc',
+  'bon',
+  'tout',
+  'mille'
+]
+
+/**
+ * Cette phrase ne demande rien : elle remercie ou approuve.
+ *
+ * Sans ça, « c'est parfait, merci » repartait à l'agent, qui répondait par un
+ * pouce levé et rouvrait le micro : il fallait parler encore pour en sortir.
+ */
+export function estCloture(brut: string): boolean {
+  const plat = aplatir(brut)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[’']/g, "'")
+  if (!plat) return false
+  // Une question n'est jamais une clôture : « c'est bon ? » attend une réponse.
+  if (/\?\s*$/.test(brut.trim())) return false
+
+  const mots = plat.split(/[\s']+/).filter(Boolean)
+  if (!mots.length || mots.length > 7) return false
+  if (!mots.some((m) => CONTENTEMENT_FORT.includes(m))) return false
+  return mots.every((m) => CONTENTEMENT_FORT.includes(m) || CONTENTEMENT_LIANT.includes(m))
+}
+
 /** Minuscules, sans ponctuation, espaces simples : la forme qu'on compare. */
 export function aplatir(texte: string): string {
   return texte
