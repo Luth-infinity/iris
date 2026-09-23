@@ -31,8 +31,12 @@ import type { Modele } from './routeur'
  * que ce soit. Le Claude Code du terminal a sa propre connexion, distincte de
  * celle de l'application de bureau, et c'est celle-là qu'Iris utilise.
  */
-const PAS_CONNECTE =
-  'Claude Code n’est pas connecté. Dans un terminal : claude auth login, puis relancez Iris.'
+const PAS_CONNECTE = 'Claude Code n’est pas connecté à votre compte.'
+
+/** L'erreur dit-elle que personne n'est connecté ? */
+export function estErreurDeCompte(message: string): boolean {
+  return message === PAS_CONNECTE
+}
 
 function traduireErreur(brut: string): string {
   if (/not logged in|\/login|authentication_failed|unauthorized/i.test(brut)) return PAS_CONNECTE
@@ -740,12 +744,33 @@ export async function etatClaude(): Promise<EtatClaude> {
   if (!numero) return { installe: false, version: '', connecte: null }
 
   const statut = (await lancerCourt(['auth', 'status'])) ?? ''
-  const connecte = /"loggedIn"\s*:\s*true/.test(statut)
+  let connecte: boolean | null = /"loggedIn"\s*:\s*true|logged in as|connecté/i.test(statut)
     ? true
     : /"loggedIn"\s*:\s*false|not logged in|\/login/i.test(statut)
       ? false
       : null
+
+  // `auth status` n'existe pas dans toutes les versions, et répond alors une
+  // aide générale : l'écran de bienvenue affichait « connexion indéterminée »,
+  // ce qui ne dit rien à personne. Le fichier d'identifiants tranche.
+  if (connecte === null) connecte = aDesIdentifiants()
+
   return { installe: true, version: numero, connecte }
+}
+
+/**
+ * Claude Code garde ses jetons dans `~/.claude/.credentials.json` (sous macOS,
+ * il peut aussi les mettre dans le trousseau : on ne conclut donc rien d'une
+ * absence de fichier là-bas).
+ */
+function aDesIdentifiants(): boolean | null {
+  try {
+    const fichier = join(homedir(), '.claude', '.credentials.json')
+    if (existsSync(fichier)) return true
+    return process.platform === 'darwin' ? null : false
+  } catch {
+    return null
+  }
 }
 
 /**
