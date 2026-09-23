@@ -150,7 +150,19 @@ mesurées dans `verif/` (`source=partage`, puis `window.iris_jouer('demande')`,
   L'identifiant enregistré ne désignait plus rien d'une session à l'autre, et
   la veille ne démarrait pas (`OverconstrainedError`).
 
-- **Un remerciement clôt l'échange** (`estCloture`). « C'est parfait, merci »
+- **Un remerciement clôt l'échange**, à deux niveaux. La liste de formules
+  (`estCloture`, côté overlay) répond sans délai aux cas les plus courants ;
+  pour tout le reste — « ah nickel c'est bon merci », « ok ça me va », « bon
+  ben super alors » —, `estFinDEchange()` fait juger la phrase entière par un
+  petit modèle chez Groq (~110 ms), avec ce qu'Iris venait de dire, et
+  seulement dans la fenêtre d'écoute qui suit une réponse. Sans réponse
+  claire, on répond plutôt que de raccrocher au nez.
+  **Les modèles de Groq « réfléchissent »** : avec un `max_tokens` serré, la
+  réponse revenait vide et le tri comme la clôture tombaient en panne
+  silencieuse. `SANS_REFLEXION` coupe la réflexion et laisse de la marge. Leur
+  catalogue bouge aussi : les Llama ont disparu le 23/09/2026 (404), qwen est
+  en tête depuis — il répondait juste sur les quinze phrases d'essai.
+- **La liste de formules seule ne suffisait pas** (`estCloture`). « C'est parfait, merci »
   repartait à l'agent, qui répondait par un pouce levé et rouvrait le micro :
   il fallait parler encore pour en sortir. La phrase est retenue côté overlay
   quand elle ne contient que du contentement (un mot fort obligatoire, tout le

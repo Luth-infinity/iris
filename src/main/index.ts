@@ -32,7 +32,7 @@ import {
 import * as cerveau from './cerveau'
 import * as updates from './updates'
 import { demarrerGarde } from './garde'
-import { trier, type Modele } from './routeur'
+import { estFinDEchange, trier, type Modele } from './routeur'
 import {
   Diseur,
   attentePrete,
@@ -988,6 +988,34 @@ function congedier(): void {
 }
 
 /**
+ * Prendre congé ne se dit pas toujours pareil.
+ *
+ * L'overlay reconnaît déjà les formules les plus courantes, sans rien
+ * demander à personne. Pour le reste — « ah nickel c'est bon merci », « ok ça
+ * me va » — un petit modèle juge la phrase entière avec ce qu'Iris venait de
+ * dire. Seulement dans la fenêtre d'écoute qui suit une réponse : ailleurs,
+ * une phrase courte reste une demande.
+ */
+async function repondreOuClore(texte: string): Promise<void> {
+  if (!ecouteEnSuite) {
+    void poser(texte)
+    return
+  }
+  const fin = await estFinDEchange(texte, {
+    cleGroq: reglages.fournisseur === 'groq' ? reglages.cleApi : '',
+    precedent
+  })
+  if (fin !== true) {
+    void poser(texte)
+    return
+  }
+  noter('fin d’échange entendue : on referme')
+  ecouteEnSuite = false
+  poserEtat('repos')
+  replierOverlay(400)
+}
+
+/**
  * Le cœur : une question part à l'agent, son texte revient par morceaux, et
  * chaque phrase terminée est prononcée sans attendre la suite.
  */
@@ -1808,7 +1836,7 @@ app.whenReady().then(() => {
       return
     }
     noter(`question : ${texte.slice(0, 80)}`)
-    void poser(texte)
+    void repondreOuClore(texte)
   })
 
   // Écoute abandonnée (silence, erreur de transcription, Échap).

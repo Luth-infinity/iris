@@ -44,12 +44,118 @@ const OUBLI = 15 * 60 * 1000
 const DELAI_GROQ = 700
 
 /**
- * Modèles essayés chez Groq, du plus pertinent au plus sûr. Leur catalogue
- * bouge : un modèle retiré répond 404, on passe au suivant et on s'en
- * souvient pour la suite de la session.
+ * Modèles essayés chez Groq, du plus rapide au plus sûr. Leur catalogue bouge
+ * vite : les Llama qui étaient en tête ont disparu (404) le 23/09/2026, et
+ * chaque session recommençait par un aller-retour perdu. Un modèle retiré
+ * répond 404, on passe au suivant et on s'en souvient pour la session.
  */
-const MODELES_GROQ = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-20b']
+const MODELES_GROQ = ['qwen/qwen3.8-27b', 'openai/gpt-oss-20b', 'openai/gpt-oss-120b']
 let modeleGroq = 0
+
+/**
+ * Ces modèles-là « réfléchissent » avant de répondre, et leur réflexion
+ * consomme le budget de jetons : avec `max_tokens` serré, la réponse revenait
+ * **vide**. On coupe la réflexion quand c'est possible et on laisse de la
+ * marge — mesuré sur quinze phrases de congé : qwen répond juste à toutes en
+ * 87 ms, gpt-oss se trompe deux fois et met quatre fois plus de temps.
+ */
+const SANS_REFLEXION = { reasoning_effort: 'none' as const, max_tokens: 200 }
+
+/**
+ * Cette phrase clôt-elle l'échange ?
+ *
+ * Une liste de formules ne suffit pas : on ne dit pas deux fois la même chose
+ * pour prendre congé (« ah nickel c'est bon merci », « ok ça me va », « bon
+ * ben super alors »). Un petit modèle juge la phrase entière, avec ce
+ * qu'Iris venait de dire — c'est la même clé Groq que la transcription, et
+ * ça se compte en centièmes de seconde.
+ *
+ * On ne demande que pour les phrases courtes dites juste après une réponse :
+ * ailleurs, le doute coûterait une demande perdue. En cas d'échec, `null` :
+ * l'appelant garde alors sa liste de formules, et dans le doute on répond.
+ */
+export async function estFinDEchange(
+  question: string,
+  contexte: { cleGroq: string; precedent: { question: string; reponse: string } | null }
+): Promise<boolean | null> {
+  if (!contexte.cleGroq.startsWith('gsk_')) return null
+  // Au-delà, c'est une phrase qui dit quelque chose, pas un au revoir.
+  if (question.trim().split(/\s+/).length > 12) return false
+
+  const avant = contexte.precedent
+    ? `Iris venait de dire : ${contexte.precedent.reponse.slice(0, 300)}`
+    : "Iris venait de répondre."
+
+  try {
+    return await interrogerGroq(contexte.cleGroq, CONSIGNE_FIN, `${avant}\n\nIl répond : ${question}`)
+  } catch {
+    // Délai dépassé ou réseau absent : on ne devine pas, on répond.
+    return null
+  }
+}
+
+/**
+ * Pose la question de la clôture, en descendant la liste des modèles quand
+ * l'un d'eux a disparu du catalogue.
+ */
+async function interrogerGroq(
+  cle: string,
+  consigne: string,
+  message: string
+): Promise<boolean | null> {
+  while (modeleGroq < MODELES_GROQ.length) {
+    const controleur = new AbortController()
+    const minuterie = setTimeout(() => controleur.abort(), DELAI_GROQ)
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${cle}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: MODELES_GROQ[modeleGroq],
+          temperature: 0,
+          ...SANS_REFLEXION,
+          messages: [
+            { role: 'system', content: consigne },
+            { role: 'user', content: message }
+          ]
+        }),
+        signal: controleur.signal
+      })
+      if (res.status === 404 || res.status === 400) {
+        modeleGroq++
+        continue
+      }
+      if (!res.ok) return null
+      const corps = await res.json()
+      const mot = String(corps?.choices?.[0]?.message?.content ?? '')
+        .trim()
+        .toUpperCase()
+      if (mot.includes('FIN')) return true
+      if (mot.includes('SUITE')) return false
+      return null
+    } finally {
+      clearTimeout(minuterie)
+    }
+  }
+  return null
+}
+
+const CONSIGNE_FIN = `Tu écoutes une conversation entre quelqu'un et son assistante vocale.
+L'assistante vient de répondre. Décide si la phrase suivante CLÔT l'échange (remerciement, approbation, congé, rien de plus à faire) ou si elle attend encore quelque chose (demande, question, précision, refus qui appelle une suite).
+Réponds par un seul mot : FIN ou SUITE.
+
+Exemples :
+« ah nickel c'est bon merci » → FIN
+« merci beaucoup, bonne soirée » → FIN
+« ok ça me va » → FIN
+« parfait » → FIN
+« c'est tout bon de mon côté » → FIN
+« super, tu peux l'ouvrir ? » → SUITE
+« parfait, maintenant range-les » → SUITE
+« non, pas celui-là » → SUITE
+« attends » → SUITE
+« ah mais c'est pas ce que je voulais » → SUITE
+« oui » → SUITE`
 
 /** Minuscules et sans accents : les règles comparent la forme, pas l'orthographe. */
 function plat(texte: string): string {
@@ -145,7 +251,7 @@ async function trierParGroq(
         body: JSON.stringify({
           model: MODELES_GROQ[modeleGroq],
           temperature: 0,
-          max_tokens: 40,
+          ...SANS_REFLEXION,
           response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: CONSIGNE_TRI },
