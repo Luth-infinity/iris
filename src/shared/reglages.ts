@@ -96,6 +96,8 @@ export type Reglages = {
    * travail et aux dossiers usuels.
    */
   etendu: boolean
+  /** Lancer Iris à l'ouverture de session. */
+  demarrageAuto: boolean
   /** La gamme de couleur des états vivants. */
   couleur: Couleur
   /** Le carillon joué au lancement. */
@@ -121,8 +123,11 @@ export type Reglages = {
  *
  * 6 : l'accès étendu s'ajoute, décoché. On ne l'accorde jamais sans être
  * demandé — c'est tout l'intérêt du bouton d'autorisation.
+ *
+ * 7 : le démarrage automatique s'ajoute, décoché. Une assistante qu'il faut
+ * penser à lancer ne sert à rien, mais c'est à chacun de le décider.
  */
-const VERSION = 6
+const VERSION = 7
 
 export const REGLAGES_DEFAUT: Reglages = {
   version: VERSION,
@@ -148,6 +153,7 @@ export const REGLAGES_DEFAUT: Reglages = {
   permission: 'edition',
   prenom: '',
   etendu: false,
+  demarrageAuto: false,
   couleur: 'iris',
   sonDemarrage: 'iris'
 }
@@ -278,6 +284,8 @@ export function normalizeReglages(brut: unknown): Reglages {
           ? 'Lucas'
           : '',
     etendu: typeof r.etendu === 'boolean' ? r.etendu : REGLAGES_DEFAUT.etendu,
+    demarrageAuto:
+      typeof r.demarrageAuto === 'boolean' ? r.demarrageAuto : REGLAGES_DEFAUT.demarrageAuto,
     couleur:
       typeof r.couleur === 'string' && r.couleur in COULEURS
         ? (r.couleur as Couleur)

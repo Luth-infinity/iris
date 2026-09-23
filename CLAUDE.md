@@ -201,6 +201,14 @@ du moment. À la fin, « 3 tâches terminées ».
   dans le processus, pas dans la session.
 - Réglages changés : `invalider()` relance la réserve.
 
+- **Le silence avant le premier mot** (mesuré chez Lucas le 23/09 : 5,5 s en
+  moyenne, 22 s au pire) est le défaut qui se sent le plus. Trois réponses :
+  une **phrase d'attente** préparée d'avance (`prechaufferAttentes`, dite si
+  rien n'est sorti au bout de 1,3 s — elle passe par la file de lecture, donc
+  la vraie réponse s'enchaîne derrière) ; Groq n'est plus consulté quand les
+  règles reconnaissent déjà une action (et son délai tombe à 700 ms) ; la
+  réserve garde un Haiku **et** un Sonnet, puisque les actions y partent.
+
 ## Deux défauts vus dans ses « dit : » (23/09)
 
 - **Elle demandait en anglais.** La phrase de confirmation reprenait la
@@ -295,6 +303,17 @@ moment — tout charger à chaque question ferait grossir la consigne sans fin :
 Les deux dossiers sont créés par Iris au démarrage (`initialiserMemoire`), pas
 par l'agent. Le tout est distinct de la mémoire de développement du dossier
 `Apps`, qu'elle charge aussi.
+
+**Les fiches s'écrivent toutes seules** (`noterDansLaFiche`) : confiées à
+l'agent, elles sont restées vides deux jours durant. Le main sait déjà tout ce
+qu'il faut — les fichiers touchés donnent le projet, la dernière phrase dit ce
+qui a été fait — donc il ajoute la ligne lui-même, à la fin d'un tour qui n'a
+touché qu'un seul projet.
+
+**La fenêtre « Ce qu'elle a fait »** (`pages/Activite.tsx`, menu de l'icône)
+rend ce journal et ces fiches lisibles : ils vivaient dans un dossier que
+personne n'ouvrait. Deux mois sont lus, pour qu'un premier du mois n'affiche
+pas une page vide.
 
 ## Comptes (Figma)
 

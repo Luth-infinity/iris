@@ -128,6 +128,15 @@ const api = {
     ipcRenderer.invoke('tester-cle', r),
   terminerBienvenue: (): void => ipcRenderer.send('terminer-bienvenue'),
   ouvrirLien: (url: string): void => ipcRenderer.send('ouvrir-lien', url),
+  /** Le journal d'Iris et ses fiches, pour la fenêtre « Ce qu'elle a fait ». */
+  activite: (): Promise<{
+    jours: { titre: string; lignes: string[] }[]
+    fiches: { nom: string; lignes: string[] }[]
+    dossier: string
+  }> => ipcRenderer.invoke('activite'),
+  surActiviteAffichee: (cb: () => void) => ecouter('activite-affichee', cb),
+  /** Ouvre le dossier de la mémoire dans l'explorateur. */
+  ouvrirMemoire: (): void => ipcRenderer.send('ouvrir-memoire'),
   /** Les comptes Figma du Claude Code d'Iris, et s'ils sont connectés. */
   comptes: (): Promise<{ nom: string; connecte: boolean }[]> => ipcRenderer.invoke('comptes'),
   /** Ouvre la connexion d'un compte : terminal, puis Firefox en navigation privée. */

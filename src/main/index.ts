@@ -33,7 +33,13 @@ import * as cerveau from './cerveau'
 import * as updates from './updates'
 import { demarrerGarde } from './garde'
 import { trier, type Modele } from './routeur'
-import { Diseur, fermer as fermerVoix, synthetiser } from './voix'
+import {
+  Diseur,
+  attentePrete,
+  fermer as fermerVoix,
+  prechaufferAttentes,
+  synthetiser
+} from './voix'
 
 // ─── Avant app.whenReady() ───────────────────────────────────────────────────
 // Chromium bloque le micro hors HTTPS et pose sinon une demande d'accès que
@@ -110,16 +116,38 @@ function chargerReglages(): Reglages {
   } catch {
     // Fichier absent au premier lancement, ou illisible : on repart des
     // défauts plutôt que d'empêcher le démarrage.
-    return {
-      ...REGLAGES_DEFAUT,
-      cleApi: heriterDeVoiceType(),
-      dossier: join(app.getPath('documents'), 'Apps')
+    // Un dossier à elle, créé au besoin : « Apps » n'existe que chez Lucas,
+    // et lâcher une inconnue dans tout Documents, au premier lancement, n'est
+    // pas une entrée en matière rassurante.
+    const sien = join(app.getPath('documents'), 'Iris')
+    try {
+      fs.mkdirSync(sien, { recursive: true })
+    } catch {
+      // Dossier impossible à créer : les paramètres permettent d'en choisir un.
     }
+    return { ...REGLAGES_DEFAUT, cleApi: heriterDeVoiceType(), dossier: sien }
   }
 }
 
 function enregistrerReglages(r: Reglages): void {
   fs.writeFileSync(cheminReglages, JSON.stringify(r, null, 2))
+  appliquerDemarrageAuto(r.demarrageAuto)
+}
+
+/**
+ * Lancer Iris à l'ouverture de session, ou non.
+ *
+ * `openAsHidden` sur macOS : elle vit dans la barre des menus, une fenêtre au
+ * démarrage n'aurait aucun sens. Sous Windows, elle n'en ouvre aucune de
+ * toute façon.
+ */
+function appliquerDemarrageAuto(actif: boolean): void {
+  if (!app.isPackaged) return
+  try {
+    app.setLoginItemSettings({ openAtLogin: actif, openAsHidden: true })
+  } catch (err) {
+    noter(`démarrage automatique impossible : ${String(err).slice(0, 80)}`)
+  }
 }
 
 // ─── État ────────────────────────────────────────────────────────────────────
@@ -128,6 +156,7 @@ let overlay: BrowserWindow | null = null
 let conversation: BrowserWindow | null = null
 let parametres: BrowserWindow | null = null
 let bienvenue: BrowserWindow | null = null
+let activite: BrowserWindow | null = null
 let tray: Tray | null = null
 let reglages = chargerReglages()
 let etat: Etat = 'repos'
@@ -263,7 +292,7 @@ function poserEtat(suivant: Etat): void {
 
 function chargerPage(
   win: BrowserWindow,
-  page: 'overlay' | 'conversation' | 'parametres' | 'bienvenue'
+  page: 'overlay' | 'conversation' | 'parametres' | 'bienvenue' | 'activite'
 ): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?page=${page}`)
@@ -353,7 +382,13 @@ function creerOverlay(): void {
   // sourde et muette sans que rien ne se voie. On note pourquoi, et on le
   // recharge.
   overlay.webContents.on('render-process-gone', (_e, details) => {
-    noter(`overlay tombé (${details.reason}, code ${details.exitCode}) : rechargement`)
+    // La mémoire au moment du plantage : la veille garde un modèle de
+    // quarante mégaoctets et la lecture audio des morceaux, et c'est la
+    // première hypothèse à écarter.
+    const memoire = Math.round(process.memoryUsage().rss / 1024 / 1024)
+    noter(
+      `overlay tombé (${details.reason}, code ${details.exitCode}, état ${etat}, ${memoire} Mo) : rechargement`
+    )
     abandonnerTour()
     poserEtat('repos')
     overlayPret = new Promise((resolve) => {
@@ -464,6 +499,45 @@ function creerBienvenue(): void {
 function ouvrirBienvenue(): void {
   bienvenue?.show()
   bienvenue?.focus()
+}
+
+/**
+ * Ce qu'elle a fait : son journal et ses fiches, enfin lisibles.
+ *
+ * Ils vivaient dans un dossier caché que personne n'ouvrait. Une assistante
+ * qui agit vraiment sur la machine doit pouvoir répondre de ce qu'elle a fait.
+ */
+function creerActivite(): void {
+  activite = new BrowserWindow({
+    width: 520,
+    height: 720,
+    minWidth: 420,
+    minHeight: 480,
+    show: false,
+    icon: iconApp,
+    title: 'Ce qu’elle a fait',
+    autoHideMenuBar: true,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1c1f' : '#fbfbfc',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      sandbox: false
+    }
+  })
+
+  chargerPage(activite, 'activite')
+
+  activite.on('close', (e) => {
+    if (quitte) return
+    e.preventDefault()
+    activite?.hide()
+  })
+  activite.on('show', () => activite?.webContents.send('activite-affichee'))
+}
+
+function ouvrirActivite(): void {
+  activite?.show()
+  activite?.focus()
 }
 
 function creerParametres(): void {
@@ -626,6 +700,24 @@ async function diagnostic(): Promise<string> {
   return lignes.join('\n')
 }
 
+/** Les lignes d'un fichier texte, ou rien s'il n'existe pas. */
+function lireLignes(chemin: string): string[] {
+  try {
+    return fs.readFileSync(chemin, 'utf-8').split(/\r?\n/)
+  } catch {
+    return []
+  }
+}
+
+/** Le journal du mois en cours et celui d'avant, du plus ancien au plus récent. */
+function deuxDerniersMois(): string[] {
+  const maintenant = new Date()
+  const avant = new Date(maintenant.getFullYear(), maintenant.getMonth() - 1, 1)
+  const nom = (d: Date): string =>
+    join(dossierJournalMemoire, `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}.md`)
+  return [nom(avant), nom(maintenant)]
+}
+
 /** Les dernières lignes du journal, pour le diagnostic. */
 function journalRecent(combien: number): string[] {
   try {
@@ -651,6 +743,7 @@ function menuTray(): Menu {
     { type: 'separator' },
     // Rangé ici et nulle part ailleurs : c'est un journal, pas une façon de
     // se servir d'Iris.
+    { label: 'Ce qu’elle a fait', click: ouvrirActivite },
     { label: 'Historique', click: ouvrirConversation },
     {
       label: 'Copier un diagnostic',
@@ -747,6 +840,12 @@ function desarmerRetrait(): void {
 
 /** Le temps que dure la sortie à l'écran, avant que la fenêtre se cache. */
 const DUREE_SORTIE = 210
+
+/**
+ * Au-delà, elle dit un mot d'attente. Assez long pour que les réponses
+ * rapides restent nettes, assez court pour que le silence ne s'installe pas.
+ */
+const ATTENTE_AVANT_MOT = 1300
 
 /** Montre l'overlay sans lui donner le focus, et annule un repli en attente. */
 async function montrerOverlay(): Promise<void> {
@@ -902,6 +1001,8 @@ async function poser(question: string): Promise<void> {
 
   const monTour = ++tourCourant
   questionCourante = propre
+  /** A-t-elle déjà dit quelque chose dans ce tour ? */
+  let aParle = false
   /** Le tour a été abandonné entre-temps : il ne touche plus à rien. */
   const perime = (): boolean => monTour !== tourCourant
 
@@ -926,6 +1027,19 @@ async function poser(question: string): Promise<void> {
   await poserForme('barre')
   // Si la réponse tarde, Iris n'a rien à faire devant les yeux.
   armerRetrait()
+
+  // Un mot tout de suite si la réponse se fait attendre : cinq secondes de
+  // silence dans une conversation, c'est très long, et elle passe pour
+  // plantée. La phrase est prête d'avance, elle part sans rien fabriquer.
+  if (reglages.parler) {
+    setTimeout(() => {
+      if (perime() || aParle || etat === 'erreur') return
+      const mp3 = attentePrete()
+      if (!mp3) return
+      poserEtat('parole')
+      overlay?.webContents.send('audio', mp3.toString('base64'))
+    }, ATTENTE_AVANT_MOT)
+  }
 
   // Le tri : quel modèle, et la suite du sujet ou un nouveau ? Il passe
   // pendant que l'écran dit déjà « je m'en occupe ».
@@ -960,6 +1074,7 @@ async function poser(question: string): Promise<void> {
         (mp3) => {
         // La voix est jouée par l'overlay : le main n'a pas de sortie audio,
         // et une fenêtre sait interrompre une lecture en cours.
+        aParle = true
         if (etat !== 'erreur') poserEtat('parole')
         // Elle a quelque chose à dire : sa place est de nouveau en face.
         desarmerRetrait()
@@ -1000,7 +1115,10 @@ async function poser(question: string): Promise<void> {
   await cerveau.demander(propre, reglages, id, { modele, suite: tri.suite }, surEvenement)
   if (perime()) return
   tourEnCours = false
-  if (!tour.erreur) precedent = { question: propre, reponse: tour.texte, fin: Date.now() }
+  if (!tour.erreur) {
+    precedent = { question: propre, reponse: tour.texte, fin: Date.now() }
+    noterDansLaFiche(tour)
+  }
 
   // Le tour est fini : qu'il y ait une réponse, une erreur ou rien, cela se
   // dit en face et pas sur le bord de l'écran.
@@ -1491,6 +1609,52 @@ function initialiserMemoire(): void {
   fs.writeFileSync(cheminMemoire, lignes.join('\n'), 'utf-8')
 }
 
+/**
+ * Note, dans la fiche du projet, ce qu'elle vient d'y faire.
+ *
+ * Les fiches avaient été confiées à l'agent, et il ne s'en servait pas : le
+ * dossier est resté vide pendant deux jours. On les écrit donc ici, à partir
+ * de ce qu'on sait déjà — les fichiers touchés disent le projet, et sa
+ * dernière phrase dit ce qu'elle a fait.
+ */
+function noterDansLaFiche(tour: Tour): void {
+  const racine = reglages.dossier
+  if (!racine || !tour.texte.trim()) return
+
+  // Le premier dossier sous la racine de travail, c'est le projet.
+  const projets = new Set<string>()
+  for (const outil of tour.outils) {
+    if (!outil.chemin) continue
+    const chemin = outil.chemin.replace(/\//g, '\\')
+    if (!chemin.toLowerCase().startsWith(racine.toLowerCase() + '\\')) continue
+    const segment = chemin.slice(racine.length + 1).split('\\')[0]
+    if (segment && segment.includes('.') === false) projets.add(segment)
+  }
+  if (projets.size !== 1) return
+
+  const projet = [...projets][0]
+  const nom = projet
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  if (!nom) return
+
+  const fichier = join(dossierFiches, `${nom}.md`)
+  const jour = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
+  const phrase = tour.texte.trim().split(/\n/)[0].slice(0, 200)
+  try {
+    fs.mkdirSync(dossierFiches, { recursive: true })
+    const neuf = !fs.existsSync(fichier)
+    const entete = neuf ? `# ${projet}\n\nCe qu'Iris a fait sur ce projet.\n\n` : ''
+    fs.appendFileSync(fichier, `${entete}- ${jour} : ${phrase}\n`)
+    if (neuf) noter(`fiche créée : ${nom}`)
+  } catch (err) {
+    noter(`fiche impossible à écrire : ${String(err).slice(0, 80)}`)
+  }
+}
+
 function lireMemoire(): Memoire {
   try {
     return {
@@ -1568,12 +1732,14 @@ app.whenReady().then(() => {
   creerConversation()
   creerParametres()
   creerBienvenue()
+  creerActivite()
   creerTray()
   updates.onChange((maj) => {
     rafraichirTray()
     if (maj.statut === 'prete') noter(`mise à jour ${maj.version} prête`)
   })
   updates.surveiller()
+  void prechaufferAttentes(reglages)
   void demarrerCerveau()
 
   // Le raccourci d'abord, dans tous les cas : le guide peut être refermé en
@@ -1615,6 +1781,8 @@ app.whenReady().then(() => {
     rafraichirTray()
     // Les Claude Code d'avance ont été lancés avec les anciens réglages.
     cerveau.invalider(reglages)
+    // La voix a pu changer : les phrases d'attente aussi.
+    void prechaufferAttentes(reglages)
     // L'overlay tient la veille : sans cette diffusion, cocher le réveil au
     // mot « Iris » n'aurait d'effet qu'au prochain démarrage.
     diffuser('reglages', reglages)
@@ -1803,6 +1971,47 @@ app.whenReady().then(() => {
       : await dialog.showOpenDialog(options)
     return res.canceled ? null : res.filePaths[0]
   })
+  /**
+   * Le journal et les fiches, mis en forme pour la fenêtre.
+   *
+   * On lit les deux derniers mois : un premier jour du mois ne doit pas
+   * afficher une page vide.
+   */
+  ipcMain.handle('activite', () => {
+    const jours: { titre: string; lignes: string[] }[] = []
+    for (const chemin of deuxDerniersMois()) {
+      let courant: { titre: string; lignes: string[] } | null = null
+      for (const ligne of lireLignes(chemin)) {
+        const jour = /^##\s+(.+)$/.exec(ligne)
+        if (jour) {
+          courant = { titre: jour[1].trim(), lignes: [] }
+          jours.push(courant)
+          continue
+        }
+        const puce = /^[-*]\s+(.+)$/.exec(ligne)
+        if (puce && courant) courant.lignes.push(puce[1].trim())
+      }
+    }
+
+    const fiches: { nom: string; lignes: string[] }[] = []
+    try {
+      for (const nom of fs.readdirSync(dossierFiches).filter((f) => f.endsWith('.md')).sort()) {
+        const lignes = lireLignes(join(dossierFiches, nom))
+          .filter((l) => /^[-*]\s+/.test(l))
+          .map((l) => l.replace(/^[-*]\s+/, '').trim())
+          .slice(-4)
+          .reverse()
+        if (lignes.length) fiches.push({ nom: nom.replace(/\.md$/, ''), lignes })
+      }
+    } catch {
+      // Pas encore de fiches : la page le dira elle-même.
+    }
+
+    return { jours: jours.reverse(), fiches, dossier: dossierMemoire }
+  })
+
+  ipcMain.on('ouvrir-memoire', () => void shell.openPath(dossierMemoire))
+
   ipcMain.handle('comptes', () => cerveau.listerComptes(reglages))
   ipcMain.on('connecter-compte', (_, nom: string) => {
     noter(`connexion du compte ${nom}`)
@@ -1868,6 +2077,12 @@ app.whenReady().then(() => {
 
 // Relancer Iris alors qu'elle tourne déjà, c'est l'appeler.
 app.on('second-instance', () => void basculer())
+
+// Le GPU ou un processus utilitaire qui tombe explique parfois un affichage
+// qui disparaît : sans cette ligne, on ne le saurait jamais.
+app.on('child-process-gone', (_e, details) => {
+  noter(`processus ${details.type} tombé (${details.reason})`)
+})
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()

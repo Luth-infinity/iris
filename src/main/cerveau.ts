@@ -180,7 +180,8 @@ function decrireOutil(nom: string, entree: Record<string, unknown>): Outil {
     champ('url')
   // Un chemin complet déborde de la barre : on n'en garde que la fin.
   const court = detail.length > 90 ? '…' + detail.slice(-89) : detail
-  return { nom, libelle, detail: court }
+  const chemin = champ('file_path') || champ('notebook_path')
+  return chemin ? { nom, libelle, detail: court, chemin } : { nom, libelle, detail: court }
 }
 
 const STATUTS = new Set(['pending', 'in_progress', 'completed'])

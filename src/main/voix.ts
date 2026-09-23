@@ -371,6 +371,42 @@ export async function synthetiser(texte: string, reglages: Reglages): Promise<Bu
   return Buffer.concat(morceaux)
 }
 
+/**
+ * Les phrases d'attente, dites pendant qu'elle réfléchit.
+ *
+ * Mesuré chez Lucas : cinq secondes et demie en moyenne avant son premier
+ * mot, vingt-deux au pire. Un silence de cinq secondes, dans une
+ * conversation, c'est très long : un mot suffit à le rendre normal.
+ */
+export const ATTENTES = ['Je regarde.', 'Deux secondes.', 'J’arrive.', 'Alors…']
+
+/**
+ * Les synthétise une fois pour toutes et les garde en mémoire.
+ *
+ * Elles doivent partir **sans délai** : les fabriquer au moment voulu
+ * coûterait précisément ce qu'on cherche à éviter. Refait à chaque changement
+ * de voix, de ton ou de débit.
+ */
+let attentes: { cle: string; mp3: Buffer[] } = { cle: '', mp3: [] }
+
+export async function prechaufferAttentes(reglages: Reglages): Promise<void> {
+  const cle = [reglages.voix, reglages.debit, reglages.ton].join('|')
+  if (attentes.cle === cle && attentes.mp3.length) return
+  try {
+    const mp3 = await Promise.all(ATTENTES.map((phrase) => synthetiser(phrase, reglages)))
+    attentes = { cle, mp3: mp3.filter((b) => b.length) }
+  } catch {
+    // Endpoint injoignable : on se passera de la phrase d'attente.
+    attentes = { cle: '', mp3: [] }
+  }
+}
+
+/** Une phrase d'attente prête à jouer, ou `null` si rien n'est prêt. */
+export function attentePrete(): Buffer | null {
+  if (!attentes.mp3.length) return null
+  return attentes.mp3[Math.floor(Math.random() * attentes.mp3.length)]
+}
+
 /** Ferme la connexion : appelé à la fermeture de l'application. */
 export function fermer(): void {
   tts?.close()

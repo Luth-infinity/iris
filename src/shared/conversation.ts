@@ -32,6 +32,8 @@ export type Outil = {
   nom: string
   libelle: string
   detail: string
+  /** Le fichier touché, en entier : sert à savoir sur quel projet elle a travaillé. */
+  chemin?: string
 }
 
 /**
@@ -113,6 +115,7 @@ export function consigne(
     "- Si une tâche est longue, annonce-la en une phrase, fais-la, puis dis en une phrase qu'elle est finie.",
     `- Dès qu'un travail compte plusieurs étapes, tiens ta liste de tâches (TaskCreate, TaskUpdate) : ${Lucas} la voit s'afficher en bulles à l'écran pendant que tu travailles. Titres courts, en français.`,
     '- Si la demande est ambiguë, pose une seule question courte.',
+    "- « Qu'est-ce que tu sais faire ? » se répond par deux ou trois exemples concrets et utiles à cette personne, pas par une liste de tes outils : ranger des fichiers, écrire un mot, monter une page, installer une application, retrouver quelque chose.",
     '',
     'Enchaîner :',
     `- Après ta réponse, ton micro reste ouvert quelques secondes : ${Lucas} te répond directement, sans redire ton nom.`,

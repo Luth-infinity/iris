@@ -33,8 +33,15 @@ export type Contexte = {
 
 /** Au-delà, un nouvel appel est un nouveau sujet, quoi qu'il dise. */
 const OUBLI = 15 * 60 * 1000
-/** Ce qu'on accorde à Groq avant de trier sans lui. */
-const DELAI_GROQ = 1200
+/**
+ * Ce qu'on accorde à Groq avant de trier sans lui.
+ *
+ * Mesuré chez Lucas : 5,5 secondes en moyenne avant le premier mot d'Iris.
+ * Cette attente-là est payée à chaque demande, pour une décision que les
+ * règles prennent presque toujours pareil — on la raccourcit, et on s'en
+ * passe quand elles sont sûres d'elles.
+ */
+const DELAI_GROQ = 700
 
 /**
  * Modèles essayés chez Groq, du plus pertinent au plus sûr. Leur catalogue
@@ -175,14 +182,23 @@ export async function trier(question: string, contexte: Contexte): Promise<Choix
     !!contexte.precedent && Date.now() - contexte.precedent.fin < OUBLI && !nouveauSujetDemande(question)
 
   // Réponse donnée dans la fenêtre d'écoute qui suit une réponse d'Iris :
-  // c'est la suite, par construction. Reste à choisir le modèle.
+  // c'est la suite, par construction. Reste à choisir le modèle — et si les
+  // règles voient une vraie action, inutile de demander à qui que ce soit.
   if (contexte.enSuite && recent) {
-    const groq = impose ? null : await trierParGroq(question, contexte)
-    return {
-      modele: impose ?? groq?.modele ?? trierParRegles(question),
-      suite: true,
-      source: impose ? 'voix' : 'fenetre'
+    const regles = trierParRegles(question)
+    if (impose || regles !== 'haiku') {
+      return { modele: impose ?? regles, suite: true, source: impose ? 'voix' : 'regles' }
     }
+    const groq = await trierParGroq(question, contexte)
+    return { modele: groq?.modele ?? regles, suite: true, source: 'fenetre' }
+  }
+
+  // Nouvel appel, mais les règles reconnaissent un chantier : le modèle ne
+  // fait aucun doute, et seule la continuité resterait à trancher — or un
+  // nouvel appel après une pause est presque toujours un nouveau sujet.
+  const regles = trierParRegles(question)
+  if (regles === 'opus' && !impose) {
+    return { modele: 'opus', suite: false, source: 'regles' }
   }
 
   const groq = await trierParGroq(question, contexte)

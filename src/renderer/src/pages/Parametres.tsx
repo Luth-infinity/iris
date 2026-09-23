@@ -442,6 +442,19 @@ export default function Parametres(): JSX.Element {
 
           <div className="flex items-center justify-between gap-3">
             <div>
+              <Label>Lancer Iris au démarrage</Label>
+              <p className="text-[11px] leading-snug text-shell-muted">
+                Elle attend dans la zone de notification, sans rien ouvrir.
+              </p>
+            </div>
+            <Switch
+              checked={reglages.demarrageAuto}
+              onCheckedChange={(demarrageAuto) => modifier({ demarrageAuto })}
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div>
               <Label>Accès à tout votre dossier utilisateur</Label>
               <p className="text-[11px] leading-snug text-shell-muted">
                 Au-delà du dossier de travail et des dossiers usuels. Jamais Windows ni les
